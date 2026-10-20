@@ -307,6 +307,6 @@ Released under the [MIT License](LICENSE). See `LICENSE` for details.
 **Quantum_coderz** · Team ID `VTU-QFF-HC-0167` · Tier `Online`
 · Built with ⚛️ Qiskit for the VTU-QFF Hackathon
 
-[⬆ Back to Top](#Quantum_coderz)
+[⬆ Back to Top](#quantum_coderz)
 
 </div>
