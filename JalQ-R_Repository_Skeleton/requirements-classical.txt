@@ -1,5 +1,0 @@
-fastapi>=0.110,<1
-uvicorn>=0.26,<1
-numpy>=1.25,<3
-pydantic>=2,<3
-
