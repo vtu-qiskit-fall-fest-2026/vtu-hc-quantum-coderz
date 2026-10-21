@@ -1,6 +1,6 @@
 <div align="center">
 
-# Quantum_coderz
+# JalQ-R | Quantum_coderz
 
 **VTU-QFF-HC-0167** &nbsp;|&nbsp; Tier: **Online**
 
@@ -22,6 +22,8 @@
 </div>
 
 ---
+
+> **Initial demo skeleton — research implementation in progress.** Numerical classical planning and an optional Qiskit Aer candidate generator. No quantum advantage or validated efficiency improvement is claimed. See [TODO.md](TODO.md) for known gaps and [demo notes](docs/demo-notes.md) for the supplied skeleton's original documentation.
 
 ## 📌 Table of Contents
 
@@ -46,9 +48,9 @@
 
 | # | Name | GitHub Username | Role |
 | :-- | :--- | :--- | :--- |
-| 1 | _Add your name_ | _your-github-username_ | _Team Lead_ |
-| 2 | _Add your name_ | _your-github-username_ | _Developer_ |
-| 3 | _Add your name_ | _your-github-username_ | _Developer_ |
+| 1 | Shylan Kamesh S | shylankamesh | _Team Lead_ |
+| 2 | Sai Santhosh T | tsaisanth29-ece | _Developer_ |
+| 3 | Derin Godson | Derin-Godson | _Developer_ |
 
 <!--
 Optional: add a plain list instead of the table above.
@@ -60,54 +62,41 @@ Optional: add a plain list instead of the table above.
 
 ## ❓ Problem Statement
 
-<!--
-State the problem you are solving. Be specific: what is broken or missing,
-who experiences it, and why does it matter. Link to the official problem
-statement from the brief if one applies.
--->
+**Problem:** Allocate a fixed quota of irrigation events across eligible field-time slots under uncertain weather. Investigate whether selective quantum replanning can maintain schedule quality while reducing quantum execution cost.
 
-**Problem:** _Describe the problem in 2–3 sentences._
+**Why it matters:** Forecast changes can make an existing plan less suitable; additional optimization must justify its computational cost. The synthetic model optimizes timing at exactly K equal-size events and does not demonstrate water savings.
 
-**Why it matters:** _Explain the impact or opportunity._
-
-**Track / Category:** _Online / Offline · Track 1 / Track 2 · <domain>_
+**Track / Category:** Online · Quantum Applications for Climate Change & Sustainability
 
 ---
 
 ## 💡 Proposed Solution
 
-<!--
-Describe your solution. Keep it concrete: the core idea, the user flow, and
-the quantum/ML technique you are applying.
--->
+**Solution:** JalQ-R generates feasible classical schedules, evaluates expected moisture stress and empirical tail risk, and uses a heuristic forecast-response gate to request optional quantum candidate search. It retains the best verified classical or quantum candidate.
 
-**Solution:** _In 2–3 sentences, describe what you built._
+**Key idea:** Selective invocation of fixed-weight XY-QAOA with explicit classical fallback.
 
-**Key idea:** _The one-line technical summary of your approach._
-
-**Why this works:** _How your approach addresses the problem statement._
+**Current status:** The quantum branch uses three fixed parameter trials at p=1 and ideal Aer simulation. Persistent budget enforcement, stronger quantum baselines, noise experiments, and held-out evaluation are still TODOs. Quantum execution must be verified in an environment with Qiskit and Aer installed.
 
 ---
 
 ## 🧩 Approach & Architecture
 
-<!--
-Walk through how it works. A simple pipeline diagram in text or Mermaid is ideal.
--->
-
 ```mermaid
 flowchart LR
-    A[Input Data] --> B[Preprocessing]
-    B --> C[Quantum Circuit / Model]
-    C --> D[Post-processing]
-    D --> E[Output]
+    A[Farm and forecast inputs] --> B[Feasible classical candidates]
+    B --> C[Heuristic invocation gate]
+    C --> D[Optional Qiskit Aer search]
+    B --> E[Feasibility and risk scoring]
+    D --> E
+    E --> F[Verified schedule and metrics]
 ```
 
-1. **Input** — _what data goes in and in what format_
-2. **Preprocessing** — _cleaning, feature extraction, encoding_
-3. **Quantum core** — _the circuit, ansatz, or algorithm used_
-4. **Post-processing** — _decoding, measurement, scoring_
-5. **Output** — _what the user finally gets_
+1. **Input:** Three fields, four windows, synthetic forecasts, eligibility, moisture and remaining quota.
+2. **Classical core:** Greedy and bounded swap-based local search with risk-aware scoring.
+3. **Quantum core:** Expected-stress QUBO mapped to RZ/RZZ gates and XXPlusYY mixing. Full CVaR is not encoded in the phase circuit.
+4. **Verification:** Check exact quota and rescore candidates classically. Missing Qiskit is reported as unavailable.
+5. **Evaluation:** An explicit offline endpoint computes the exact optimum; online planning does not consult it. The dashboard comparison is exploratory, not a validated benchmark.
 
 ---
 
@@ -116,10 +105,11 @@ flowchart LR
 | Layer | Technology |
 | :--- | :--- |
 | Language | Python 3.11+ |
-| Quantum SDK | Qiskit `>=1.0`, Qiskit Aer, Qiskit Runtime |
-| Optimisation | Qiskit Optimization / COBYLA / SPSA |
-| Simulation | AerSimulator (statevector / noisemodel) |
-| Environment | JupyterLab / VS Code, `venv` |
+| API | FastAPI, Uvicorn, Pydantic |
+| Numerics | NumPy |
+| Quantum | Qiskit, Qiskit Aer (optional for classical demo) |
+| Frontend | HTML, CSS, vanilla JavaScript |
+| Tests | pytest, HTTPX |
 | Version control | Git + GitHub |
 
 ---
@@ -128,72 +118,57 @@ flowchart LR
 
 ```text
 vtu-hc-quantum-coderz/
-├── README.md              # This file
-├── requirements.txt       # Python dependencies
-├── pyproject.toml         # Project metadata (optional)
-├── .gitignore
-├── notebooks/             # Jupyter notebooks for experiments
-│   └── exploration.ipynb
-├── src/
-│   ├── __init__.py
-│   ├── circuit.py         # Quantum circuit construction
-│   ├── optimizer.py       # Optimization loop
-│   └── main.py            # Entry point
-├── data/                  # Datasets (use Git LFS for large files)
-├── tests/                 # Unit tests
-│   └── test_circuit.py
-└── docs/                  # Notes, diagrams, reports
+├── README.md
+├── TODO.md
+├── requirements.txt
+├── requirements-classical.txt
+├── requirements-dev.txt
+├── planner.py
+├── quantum_engine.py
+├── server.py
+├── start_windows.bat
+├── start_mac_linux.sh
+├── static/                 # HTML, CSS, JavaScript
+├── tests/test_planner.py
+└── docs/demo-notes.md       # Original supplied skeleton notes
 ```
 
 ---
 
 ## 🚀 How to Run
 
-### Prerequisites
+Clone this assigned repository, then create a virtual environment:
 
-- Python 3.11 or newer
-- [Git](https://git-scm.com/downloads)
-- A GitHub account (you need collaborator access to this repo)
-
-### 1. Clone the repository
-
-```bash
+```powershell
 git clone https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-quantum-coderz.git
 cd vtu-hc-quantum-coderz
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m uvicorn server:app --reload
 ```
 
-### 2. Create a virtual environment
+Open http://127.0.0.1:8000. On macOS/Linux use `python3 -m venv .venv` and `source .venv/bin/activate`.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate        # Linux / macOS
-# .venv\Scripts\activate         # Windows (PowerShell)
+For the classical-only demo, install `requirements-classical.txt` instead. Requested quantum runs will explicitly report unavailable when Qiskit/Aer are absent.
+
+### Tests
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
 ```
 
-### 3. Install dependencies
+Development requirements include the classical web dependencies and test tools; install `requirements.txt` as well to exercise Qiskit. Supplied tests do not fully validate the quantum branch.
 
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
+### Validation of this initial upload
 
-### 4. Run
+- Python syntax: four source/test files passed parsing.
+- Frontend JavaScript: `node --check static/app.js` passed.
+- Targeted numerical checks: default eight-variable QUBO/Ising mapping matched all 256 bitstrings within 1e-7; quota and one rolling-horizon preservation check passed.
+- Full pytest/API and Qiskit execution were not run in the upload environment because dependencies were unavailable.
 
-```bash
-python -m src.main
-```
-
-Or launch the notebook workflow:
-
-```bash
-jupyter lab
-```
-
-### 5. Run the tests
-
-```bash
-pytest -q
-```
+No performance benchmark or quantum advantage is established.
 
 ---
 
@@ -268,7 +243,7 @@ git pull --rebase       # update your branch on top of main
 
 ## ✅ Submission Checklist
 
-- [ ] Repository created and **public**
+- [ ] Assigned event repository used; visibility follows organizer instructions
 - [ ] All team members added as **collaborators** and invitations accepted
 - [ ] `README.md` updated with project details, problem statement and solution
 - [ ] Team members listed under [Team Members](#-team-members-github-ids)
@@ -296,6 +271,15 @@ git pull --rebase       # update your branch on top of main
 
 ---
 
+### Research references and attribution
+
+- [Irrigation QAOA formulation](https://arxiv.org/abs/2607.13374)
+- [Warm-start QAOA with XY mixers](https://arxiv.org/abs/2504.19934)
+- [Iterative warm-start XY mixers](https://arxiv.org/abs/2604.02083)
+- [Initial-state/mixer alignment](https://www.nature.com/articles/s41534-023-00787-5)
+
+This commit imports the supplied demo skeleton. Code preparation and documentation used AI assistance; the team must understand, test, and attribute its submission according to event rules. Research components are prior art; originality and efficiency are not certified.
+
 ## 📄 License
 
 Released under the [MIT License](LICENSE). See `LICENSE` for details.
@@ -310,3 +294,4 @@ Released under the [MIT License](LICENSE). See `LICENSE` for details.
 [⬆ Back to Top](#quantum_coderz)
 
 </div>
+
