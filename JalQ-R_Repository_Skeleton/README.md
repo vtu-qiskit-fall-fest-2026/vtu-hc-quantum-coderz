@@ -48,9 +48,9 @@
 
 | # | Name | GitHub Username | Role |
 | :-- | :--- | :--- | :--- |
-| 1 | _Add your name_ | _your-github-username_ | _Team Lead_ |
-| 2 | _Add your name_ | _your-github-username_ | _Developer_ |
-| 3 | _Add your name_ | _your-github-username_ | _Developer_ |
+| 1 | Shylan Kamesh S | shylankamesh | _Team Lead_ |
+| 2 | Sai Santhosh T | tsaisanth29-ece | _Developer_ |
+| 3 | Derin Godson | Derin-Godson | _Developer_ |
 
 <!--
 Optional: add a plain list instead of the table above.
