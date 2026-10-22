@@ -10,6 +10,8 @@ const state = {
   previous_rain:null, previous_plan:null,
 };
 let currentPlan = null;
+let stateVersion = 0;
+function markPlanDirty(){ currentPlan = null; stateVersion += 1; }
 const el=id=>document.getElementById(id);
 const copyState=()=>structuredClone(state);
 const money=v=>Number(v).toLocaleString(undefined,{maximumFractionDigits:1});
@@ -19,17 +21,17 @@ function setLoading(active){for(const id of ['runMain','runConfigured','compareB
 function navigate(name){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('is-visible',v.id==='view-'+name));document.querySelectorAll('.nav-link').forEach(a=>a.classList.toggle('active',a.dataset.view===name));el('breadcrumbSection').textContent={overview:'Overview',farm:'Farm Model',experiment:'Experiments',research:'Research Notes'}[name];window.scrollTo({top:0,behavior:'smooth'})}
 function wireNav(){document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.view)));document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.goto)))}
 function controls(){el('rainControls').innerHTML=state.rain.map((v,i)=>`<div class="control-row"><label for="rain-${i}">Window ${i+1}${i<state.start_window?' · completed':''}</label><output id="rainValue-${i}">${Number(v).toFixed(1)}</output></div><input id="rain-${i}" type="range" min="0" max="16" step="0.5" value="${v}" ${i<state.start_window?'disabled':''}>`).join('');
-state.rain.forEach((_,i)=>el('rain-'+i).addEventListener('input',e=>{if(state.previous_rain===null){state.previous_rain=[...state.rain];state.previous_plan=currentPlan?.schedule?structuredClone(currentPlan.schedule):null}state.rain[i]=+e.target.value;el('rainValue-'+i).textContent=state.rain[i].toFixed(1)}));
+state.rain.forEach((_,i)=>el('rain-'+i).addEventListener('input',e=>{if(state.previous_rain===null){state.previous_rain=[...state.rain];state.previous_plan=currentPlan?.schedule?structuredClone(currentPlan.schedule):null}state.rain[i]=+e.target.value;el('rainValue-'+i).textContent=state.rain[i].toFixed(1);markPlanDirty()}));
 for(const [id,key,out,format] of [['quotaInput','quota','quotaOut',v=>v],['uncertaintyInput','uncertainty','uncertaintyOut',v=>v.toFixed(1)],['riskInput','risk_weight','riskOut',v=>v.toFixed(2)]]){
-  el(id).value=state[key];el(out).textContent=format(state[key]);el(id).addEventListener('input',e=>{state[key]=+e.target.value;el(out).textContent=format(state[key])});
+  el(id).value=state[key];el(out).textContent=format(state[key]);el(id).addEventListener('input',e=>{state[key]=+e.target.value;el(out).textContent=format(state[key]);markPlanDirty()});
 }
-el('policyInput').value=state.policy;el('policyInput').addEventListener('change',e=>state.policy=e.target.value);
+el('policyInput').value=state.policy;el('policyInput').addEventListener('change',e=>{state.policy=e.target.value;markPlanDirty()});
 el('timelineLabel').textContent=`Currently planning from Window ${state.start_window+1}. Previous events remain locked.`;
 el('cropProfiles').innerHTML=fieldNames.map((name,i)=>`<div class="crop-card"><h3>${name}</h3><div class="crop-stat"><span>Observed moisture</span><strong id="moistLabel${i}">${state.moisture[i]}</strong></div><input id="moisture${i}" type="range" min="10" max="60" step="1" value="${state.moisture[i]}"><div class="crop-stat"><span>Target</span><strong>${state.target[i]}</strong></div><div class="crop-stat"><span>Crop priority</span><strong>${state.priority[i].toFixed(1)}×</strong></div></div>`).join('');
-state.moisture.forEach((_,i)=>el('moisture'+i).addEventListener('input',e=>{state.moisture[i]=+e.target.value;el('moistLabel'+i).textContent=state.moisture[i]}));
+state.moisture.forEach((_,i)=>el('moisture'+i).addEventListener('input',e=>{state.moisture[i]=+e.target.value;el('moistLabel'+i).textContent=state.moisture[i];markPlanDirty()}));
 }
 async function api(path,data){const res=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let json=await res.json();if(!res.ok)throw new Error(typeof json.detail==='string'?json.detail:'Request failed');return json}
-async function run(){setLoading(true);try{const result=await api('/api/plan',copyState());currentPlan=result;render(result);toast('Schedule computed. All displayed scores are real model outputs.')}catch(err){toast('Cannot run planner: '+err.message)}finally{setLoading(false)}}
+async function run(){setLoading(true);const version=stateVersion;try{const result=await api('/api/plan',copyState());if(version!==stateVersion){toast('Inputs changed during computation. Please recalculate.');return;}currentPlan=result;render(result);toast('Schedule computed. All displayed scores are real model outputs.')}catch(err){toast('Cannot run planner: '+err.message)}finally{setLoading(false)}}
 function render(d){el('quotaMetric').innerHTML=d.remaining_quota+' <small>events</small>';el('riskValue').textContent=money(d.objective.risk);el('meanValue').textContent=money(d.objective.mean);el('cvarValue').textContent=money(d.objective.cvar);el('baselineValue').textContent=money(d.classical_baseline.risk);
 const qStatus=d.quantum.status;el('quantumMetric').textContent=qStatus==='completed'?'Executed':qStatus==='unavailable_install_qiskit_and_qiskit_aer'?'Unavailable':d.quantum_invoked?'Attempted':'Skipped';el('quantumDetail').textContent=qStatus==='completed'?`${d.quantum.shots} shots · ${d.quantum.circuit_evaluations} circuits`:qStatus==='unavailable_install_qiskit_and_qiskit_aer'?'Install Qiskit and Aer':'Policy / trigger decision';
 el('calendarStatus').textContent=`${d.remaining_quota} remaining events`;const {start_window, schedule}=d;
@@ -53,8 +55,8 @@ async function exact(){setLoading(true);try{const d=await api('/api/evaluate',co
 function advance(){if(!currentPlan){toast('Run the planner before advancing the horizon.');return}if(state.start_window>=3){toast('Already at the final window. Reset the page to start over.');return}
 const window=state.start_window;
 state.previous_rain=[...state.rain];state.previous_plan=structuredClone(currentPlan.schedule);
-for(let f=0;f<3;f++){state.executed[f][window]=currentPlan.schedule[f][window];state.moisture[f]=Math.round((state.moisture[f]+state.rain[window]-state.evaporation[window]+state.irrigation_gain*state.executed[f][window])*10)/10}
-state.start_window++;controls();toast(`Window ${window+1} completed: decisions frozen, observations updated.`)}
+if(state.rain_by_field){state.previous_rain_by_field=structuredClone(state.rain_by_field);}
+for(let f=0;f<3;f++){state.executed[f][window]=currentPlan.schedule[f][window];state.moisture[f]=Math.round((state.moisture[f]+(state.rain_by_field?state.rain_by_field[f][window]:state.rain[window])-(state.evaporation_by_field?state.evaporation_by_field[f][window]:state.evaporation[window])+state.irrigation_gain*state.executed[f][window])*10)/10}
+state.start_window++;markPlanDirty();controls();if(window.refreshAdvancedControls)window.refreshAdvancedControls();toast(`Window ${window+1} completed using synthetic forecast as observed weather; decisions frozen.`)}
 async function boot(){wireNav();controls();el('runMain').addEventListener('click',run);el('runConfigured').addEventListener('click',run);el('compareButton').addEventListener('click',compare);el('exactButton').addEventListener('click',exact);el('advanceButton').addEventListener('click',advance);try{const status=await(await fetch('/api/health')).json();el('engineDot').classList.toggle('ready',status.quantum_available);el('engineStatus').textContent=status.quantum_available?'Qiskit engine ready':'Classical engine ready'}catch{el('engineStatus').textContent='API unavailable'}await run()}
 boot();
-
