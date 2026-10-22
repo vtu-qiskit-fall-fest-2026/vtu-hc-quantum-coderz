@@ -7,12 +7,39 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import combinations
 from typing import Optional
-import math
 import numpy as np
 
 FIELDS = ('North Field', 'East Field', 'South Field')
 WINDOWS = 4
 DEFAULT_AVAILABILITY = ((1,1,0,1), (1,0,1,0), (0,1,1,1))
+
+
+def _field_matrix(matrix, legacy, *, name, legacy_is_field_vector=False):
+    """Return a field-by-window float array, retaining the legacy vector API."""
+    if matrix is None:
+        original = np.asarray(legacy, dtype=float)
+        result = (np.tile(original[:, None], (1, WINDOWS)) if legacy_is_field_vector
+                  else np.tile(original, (3, 1)))
+    else:
+        result = np.asarray(matrix, dtype=float)
+    if result.shape != (3, WINDOWS) or not np.all(np.isfinite(result)):
+        raise ValueError(f'{name} must be a finite 3x4 matrix')
+    return result
+
+
+def empirical_cvar(losses, alpha):
+    """Exact equally weighted empirical upper-tail CVaR, fractional boundary included."""
+    arr = np.asarray(losses, dtype=float).reshape(-1)
+    if not len(arr) or not np.all(np.isfinite(arr)) or not (0 < alpha < 1):
+        raise ValueError('CVaR requires finite losses and 0 < alpha < 1')
+    desc = np.sort(arr)[::-1]
+    tail_mass = (1.0 - alpha) * len(desc)
+    full = min(len(desc), int(np.floor(tail_mass + 1e-12)))
+    fractional = max(0.0, tail_mass - full)
+    weighted = float(desc[:full].sum())
+    if fractional > 0 and full < len(desc):
+        weighted += fractional * float(desc[full])
+    return weighted / tail_mass
 
 @dataclass
 class FarmRequest:
@@ -38,6 +65,11 @@ class FarmRequest:
     quantum_shots: int = 384
     previous_rain: Optional[list[float]] = None
     previous_plan: Optional[list[list[int]]] = None
+    # Optional Member-2 inputs. If absent, the legacy weather/target model is used.
+    rain_by_field: Optional[list[list[float]]] = None
+    evaporation_by_field: Optional[list[list[float]]] = None
+    target_by_window: Optional[list[list[float]]] = None
+    previous_rain_by_field: Optional[list[list[float]]] = None
 
     def validate(self):
         if len(self.moisture) != 3 or len(self.target) != 3 or len(self.priority) != 3: raise ValueError('Three fields are required')
@@ -59,6 +91,28 @@ class FarmRequest:
         if self.previous_rain is not None and len(self.previous_rain)!=WINDOWS: raise ValueError('previous_rain must have four values')
         if self.previous_plan is not None and (len(self.previous_plan)!=3 or any(len(a)!=4 for a in self.previous_plan)):
             raise ValueError('previous_plan must be 3×4')
+        # Guard against NaN/Inf, which silently invalidates circuit coefficients.
+        for name in ('moisture', 'target', 'priority', 'rain', 'evaporation'):
+            arr = np.asarray(getattr(self, name), dtype=float)
+            if not np.all(np.isfinite(arr)):
+                raise ValueError(f'{name} must contain only finite numbers')
+        for name in ('irrigation_gain', 'uncertainty', 'risk_weight', 'alpha',
+                     'trigger_shift', 'trigger_regret', 'trigger_instability'):
+            if not np.isfinite(getattr(self, name)):
+                raise ValueError(f'{name} must be finite')
+        if self.previous_rain is not None and not np.all(np.isfinite(self.previous_rain)):
+            raise ValueError('previous_rain must be finite')
+        for name in ('rain_by_field', 'evaporation_by_field',
+                     'target_by_window', 'previous_rain_by_field'):
+            matrix = getattr(self, name)
+            if matrix is not None:
+                data = np.asarray(matrix, dtype=float)
+                if data.shape != (3, WINDOWS) or not np.all(np.isfinite(data)):
+                    raise ValueError(f'{name} must be a finite 3x4 matrix')
+        for name in ('rain_by_field', 'evaporation_by_field'):
+            matrix = getattr(self, name)
+            if matrix is not None and np.any(np.asarray(matrix, dtype=float) < 0):
+                raise ValueError(f'{name} cannot contain negative weather forecasts')
 
     @property
     def remaining(self):
@@ -76,20 +130,38 @@ class Planner:
         self.n=len(self.slots)
         self.k=request.remaining
         if self.k < 0 or self.k > self.n: raise ValueError(f'Remaining quota {self.k} cannot fit {self.n} future eligible slots')
-        rng=np.random.default_rng(request.seed)
-        self.rain_scenarios=[]
-        self.evap_scenarios=[]
-        self.weather_seed=request.seed
+        rng = np.random.default_rng(request.seed)
+        self.weather_seed = request.seed
+        self.target_matrix = _field_matrix(request.target_by_window, request.target,
+                                           name='target_by_window', legacy_is_field_vector=True)
+        rain_base = _field_matrix(request.rain_by_field, request.rain, name='rain_by_field')
+        evap_base = _field_matrix(request.evaporation_by_field, request.evaporation,
+                                  name='evaporation_by_field')
+        self.rain_scenarios = []
+        self.evap_scenarios = []
+        remaining = WINDOWS - request.start_window
         for _ in range(request.scenario_count):
-            rr=np.array(request.rain,dtype=float)
-            ee=np.array(request.evaporation,dtype=float)
-            rr[request.start_window:]+=rng.normal(0,request.uncertainty,WINDOWS-request.start_window)
-            ee[request.start_window:]+=rng.normal(0,request.uncertainty*.35,WINDOWS-request.start_window)
-            self.rain_scenarios.append(np.maximum(0,rr))
-            self.evap_scenarios.append(np.maximum(0,ee))
-        self.rain_scenarios=np.array(self.rain_scenarios)
-        self.evap_scenarios=np.array(self.evap_scenarios)
-        self.eval_count=0
+            rr, ee = rain_base.copy(), evap_base.copy()
+            # Shared perturbations for old vector inputs reproduce the ORIGINAL
+            # RNG draws and cross-field correlation; explicit matrices can vary
+            # independently between fields. Mixed inputs work independently.
+            if request.rain_by_field is None:
+                perturb = rng.normal(0, request.uncertainty, remaining)
+                rr[:, request.start_window:] += perturb[None, :]
+            else:
+                rr[:, request.start_window:] += rng.normal(
+                    0, request.uncertainty, (3, remaining))
+            if request.evaporation_by_field is None:
+                perturb = rng.normal(0, request.uncertainty * .35, remaining)
+                ee[:, request.start_window:] += perturb[None, :]
+            else:
+                ee[:, request.start_window:] += rng.normal(
+                    0, request.uncertainty * .35, (3, remaining))
+            self.rain_scenarios.append(np.maximum(0, rr))
+            self.evap_scenarios.append(np.maximum(0, ee))
+        self.rain_scenarios = np.asarray(self.rain_scenarios)  # (S, 3, 4)
+        self.evap_scenarios = np.asarray(self.evap_scenarios)  # (S, 3, 4)
+        self.eval_count = 0
 
     def feasible(self,bits):
         return len(bits)==self.n and all(int(v) in (0,1) for v in bits) and sum(bits)==self.k
@@ -110,8 +182,10 @@ class Planner:
         traces=np.zeros((self.r.scenario_count,3,WINDOWS))
         for t in range(WINDOWS):
             if t >= self.r.start_window:
-                moisture += self.rain_scenarios[:,t,None] - self.evap_scenarios[:,t,None] + self.r.irrigation_gain*slots[:,t]
-                loss += np.sum(np.asarray(self.r.priority)*(moisture-np.asarray(self.r.target))**2,axis=1)
+                moisture += (self.rain_scenarios[:, :, t] - self.evap_scenarios[:, :, t]
+                             + self.r.irrigation_gain * slots[:, t])
+                loss += np.sum(np.asarray(self.r.priority) *
+                               (moisture - self.target_matrix[:, t]) ** 2, axis=1)
             traces[:,:,t]=moisture
         return loss,traces
 
@@ -119,9 +193,8 @@ class Planner:
         if not self.feasible(bits): raise ValueError('Candidate does not satisfy exact remaining quota')
         if track:self.eval_count+=1
         losses,_=self.loss_vector(bits)
-        # Discrete equally-weighted empirical CVaR: average of worst ceil((1-alpha)S) outcomes.
-        m=max(1,math.ceil((1-self.r.alpha)*len(losses)))
-        tail=float(np.mean(np.sort(losses)[-m:]))
+        # Empirical upper-tail CVaR, including fractional scenario at boundary.
+        tail = empirical_cvar(losses, self.r.alpha)
         avg=float(np.mean(losses))
         risk=(1-self.r.risk_weight)*avg+self.r.risk_weight*tail
         return {'risk':float(risk),'mean':avg,'cvar':tail}
@@ -198,9 +271,17 @@ class Planner:
 
     def trigger(self,candidates):
         r=self.r
-        prev=np.asarray(r.previous_rain if r.previous_rain is not None else r.rain,dtype=float)
-        now=np.asarray(r.rain,dtype=float)
-        shift=float(np.mean(np.abs(now[r.start_window:]-prev[r.start_window:])) / max(1.,np.mean(np.abs(prev[r.start_window:]))))
+        now = _field_matrix(r.rain_by_field, r.rain, name='rain_by_field')
+        if r.previous_rain_by_field is not None:
+            prev = _field_matrix(r.previous_rain_by_field, r.rain,
+                                 name='previous_rain_by_field')
+        elif r.previous_rain is not None:
+            prev = _field_matrix(None, r.previous_rain, name='previous_rain')
+        else:
+            prev = now
+        future = slice(r.start_window, WINDOWS)
+        shift = float(np.mean(np.abs(now[:, future] - prev[:, future])) /
+                      max(1., np.mean(np.abs(prev[:, future]))))
         incumbent=None
         if r.previous_plan is not None:
             bits=tuple(int(r.previous_plan[f][t]) for f,t in self.slots)
@@ -282,4 +363,3 @@ def decide(request: FarmRequest, *, offline_evaluation=False):
         result['offline_evaluation']={'optimal_risk':round(exact['risk'],2),'gap':round(winner['risk']-exact['risk'],2),
              'only_for_posthoc_validation':True}
     return result
-
