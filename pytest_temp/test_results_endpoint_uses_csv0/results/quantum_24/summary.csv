@@ -1,3 +1,0 @@
-policy,episodes,mean_realized_stress,total_quantum_calls,total_shots,total_quantum_improvements
-never,2,123.25,0,0,0
-always,2,123.25,3,1152,0

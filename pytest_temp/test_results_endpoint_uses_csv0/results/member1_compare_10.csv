@@ -1,5 +1,0 @@
-seed,method,final_mean_sampled_stress,shots,circuit_evaluations
-1,fixed,500,384,4
-1,cobyla,400,384,9
-2,fixed,550,384,4
-2,cobyla,430,384,9
