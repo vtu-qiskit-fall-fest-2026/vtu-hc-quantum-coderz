@@ -1,0 +1,6 @@
+policy,episodes,mean_realized_stress,std_realized_stress,mean_paired_difference_from_classical,std_paired_difference_from_classical,mean_predicted_risk,total_quantum_calls,total_completed_quantum_calls,quantum_call_rate_per_nontrivial_update,total_quantum_improvements,total_shots,total_gate_weighted_shots,total_classical_evaluations_reported,total_budget_blocked
+never,24,2627.0578,1309.4397,0.0,0.0,1631.8855,0,0,0.0,0,0,0,1077,0
+always,24,2627.0578,1309.4397,0.0,0.0,1631.8855,50,50,0.9804,0,19200,562176,3182,1
+selective,24,2627.0578,1309.4397,0.0,0.0,1631.8855,6,6,0.1176,0,2304,50688,1226,0
+random,24,2627.0578,1309.4397,0.0,0.0,1631.8855,4,4,0.0784,0,1536,46080,1265,0
+extra_classical,24,2627.0578,1309.4397,0.0,0.0,1631.8855,0,0,0.0,0,0,0,1127,0
