@@ -1,0 +1,29 @@
+/* Member 3 additions: use the original JalQ-R palette and typographic scale. */
+.m3-panel { padding: 24px 28px; margin: 24px 0; }
+.m3-panel h2 { margin: 0 0 5px; font-size: 21px; font-family: Manrope,Arial,sans-serif; letter-spacing: -.5px; }
+.m3-panel h3 { margin: 24px 0 12px; font-size: 14px; font-weight: 800; }
+.m3-panel p { line-height: 1.55; }
+.m3-muted { color: #697e77; font-size: 12px; }
+.m3-note { background: #f3f8f5; color: #58766a; border-radius: 9px; padding: 13px 15px; font-size: 12px; }
+.m3-warning { padding: 12px 15px; border-left: 3px solid #b5803d; background: #faf8f0; color: #715b37; border-radius: 6px; }
+.m3-flex { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.m3-matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; margin: 15px 0; padding: 8px 15px 14px; background: #fff; }
+.m3-matrix-wrap h3 { margin: 9px 0; }
+.m3-input-table, .m3-results-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 460px; }
+.m3-input-table th, .m3-input-table td, .m3-results-table th, .m3-results-table td { padding: 9px 9px; border-bottom: 1px solid var(--line); text-align: left; }
+.m3-input-table thead th, .m3-results-table thead th { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+.m3-input-table tbody tr:last-child th, .m3-input-table tbody tr:last-child td { border-bottom: 0; }
+.m3-input-table tbody th { font-weight: 700; color: var(--ink); white-space: nowrap; }
+.m3-number { width: 90px; max-width: 100%; padding: 8px 7px; background: #f9fcfa; border: 1px solid #d9e9e1; border-radius: 7px; color: var(--ink); }
+.m3-number:focus { outline: 2px solid #8dd6ba; }
+.m3-number:disabled { background: #e9ecea; color: #95a39c; cursor: not-allowed; }
+.m3-bottom { margin-top: 18px; }
+.m3-bar-row { margin: 16px 0; }
+.m3-bar-label { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 7px; font-size: 12px; }
+.m3-track { width: 100%; height: 11px; background: #eff5f0; border-radius: 30px; overflow: hidden; }
+.m3-fill { height: 100%; background: linear-gradient(90deg,#0d745e,#46b88e); border-radius: 30px; min-width: 0; }
+.m3-results-table { margin: 18px 0; }
+.m3-optimizer-card { margin: 17px 0; }
+.m3-optimizer-card .m3-flex { margin-bottom: 8px; }
+.m3-optimizer-card .m3-muted { display: block; margin-top: 5px; }
+@media (max-width: 700px) { .m3-panel { padding: 18px; } .m3-number { width: 65px; } .m3-bar-label { flex-wrap: wrap; } }
