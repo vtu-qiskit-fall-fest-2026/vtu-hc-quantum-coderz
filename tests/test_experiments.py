@@ -29,6 +29,27 @@ def test_rolling_horizon_smoke_uses_exact_three_events():
     assert result["irrigation_events"] == 3
     assert result["shots"] == 0
     assert all(r["quantum_invoked"] == 0 for r in steps)
+    assert all(r["selected_forecast_gap"] >= 0 for r in steps)
+    assert all(r["offline_exact_evaluations"] >= 1 for r in steps)
+    assert all(r["planner_loss_scenario_evaluations"] > 0 for r in steps)
+    assert result["planner_loss_scenario_evaluations"] == sum(
+        r["planner_loss_scenario_evaluations"] for r in steps
+    )
+
+
+def test_exact_classical_policy_matches_current_forecast_optimum():
+    from planner import decide
+
+    episode = create_episode(340)
+    request = request_for(
+        episode, 0, [29.0, 23.0, 25.0], [[0] * 4 for _ in range(3)], None,
+        policy="exact_classical", shots=384, scenario_count=5,
+    )
+    plan = decide(request, offline_evaluation=True)
+    assert plan["policy"] == "exact_classical"
+    assert plan["objective"]["risk"] == plan["offline_evaluation"]["optimal_risk"]
+    assert plan["planner_work"]["exact_enumeration_evaluations"] > 0
+    assert plan["quantum"]["status"] == "not_requested"
 
 
 def test_calibration_uses_only_dev_episode_data():
@@ -44,5 +65,10 @@ def test_same_episode_same_policy_reproducible_without_quantum():
                   random_probability=0, max_quantum_calls=0, mode="smoke")
     a, x = run_episode(episode, **kwargs)
     b, y = run_episode(episode, **kwargs)
+    for row in a + b:
+        assert row["planning_runtime_seconds"] >= 0
+        row.pop("planning_runtime_seconds")
+    x.pop("planning_runtime_seconds")
+    y.pop("planning_runtime_seconds")
     assert a == b
     assert x == y

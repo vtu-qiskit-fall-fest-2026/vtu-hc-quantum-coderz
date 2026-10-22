@@ -1,297 +1,134 @@
-<div align="center">
+# JalQ-R — Quantum_coderz
 
-# JalQ-R | Quantum_coderz
+**Selective, resource-budgeted QAOA for weather-driven irrigation replanning**
 
-**VTU-QFF-HC-0167** &nbsp;|&nbsp; Tier: **Online**
+Documentation release: **23 October 2026**. This README is the starting point for the complete integrated project. Member contributions are already included; no separate patches are needed.
 
-</div>
+**Submission status:** code and saved experimental evidence are included. Add the actual demo video and presentation, complete the final laptop walkthrough, and obtain a clean full Python/QAOA verification before submission. The latest local full-suite attempt encountered a Qiskit Aer native-library error; earlier passing runs are historical. See the [verification record](docs/VERIFICATION.md).
 
----
+VTU-QFF-HC-0167 · Online · Quantum Applications for Climate Change & Sustainability
 
-<div align="center">
+**Primary research question:** Can a forecast-aware selective invocation policy reduce QAOA execution (calls and circuit shots) relative to always-running QAOA, without worsening selected irrigation schedules on held-out synthetic episodes?
 
-| | |
-| :--- | :--- |
-| **Team** | Quantum_coderz |
-| **Team ID** | VTU-QFF-HC-0167 |
-| **Tier** | Online |
-| **Repository** | [vtu-hc-quantum-coderz](https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-quantum-coderz.git) |
-| **Organisation** | [vtu-qiskit-fall-fest-2026](https://github.com/vtu-qiskit-fall-fest-2026) |
-| **Event** | VTU-QFF Hackathon — VTU-Qiskit Fall Fest 2026 |
+**Working research prototype:** JalQ-R implements classical-first, risk-aware irrigation scheduling and optional Qiskit Aer p=1 XY-QAOA with COBYLA, bounded shots per invocation, and a demo-wide rolling call/shot budget. We evaluate **selective QAOA versus always-run QAOA** as the primary quantum resource-efficiency comparison. Classical-only, random invocation, extra-classical search and an explicit exact reference remain available for correctness and honest practical evaluation. No quantum advantage, quantum speedup, real-farm benefit or water savings have been established.
 
-</div>
+**Demo video:** **TO ADD BEFORE SUBMISSION** — replace this line with your actual YouTube demonstration URL. No video is provided or claimed in this package.
 
----
+**Updated Hybrid experiments screenshot:** Captured from this updated HTML/CSS in a local headless browser with real FastAPI TestClient responses reading the saved benchmark CSVs. This is **not** a Qiskit execution screenshot; the team should also capture the completed QAOA demo on its Windows laptop.
 
-> **Initial demo skeleton — research implementation in progress.** Numerical classical planning and an optional Qiskit Aer candidate generator. No quantum advantage or validated efficiency improvement is claimed. See [TODO.md](TODO.md) for known gaps and [demo notes](docs/demo-notes.md) for the supplied skeleton's original documentation.
+![Finalized Hybrid experiments dashboard showing CSV-backed selective versus always-run QAOA evidence](docs/screenshots/hybrid_experiments.png)
 
-## 📌 Table of Contents
+[View the full experiments page](docs/screenshots/hybrid_experiments_full.png). [Historical pre-Hybrid overview screenshot](docs/screenshots/overview.png) is preserved only as an archive.
 
-- [Team Members](#-team-members-github-ids)
-- [Problem Statement](#-problem-statement)
-- [Proposed Solution](#-proposed-solution)
-- [Approach & Architecture](#-approach--architecture)
-- [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [How to Run](#-how-to-run)
-- [How to Push Code](#-how-to-push-code)
-- [Submission Checklist](#-submission-checklist)
-- [Resources](#-resources)
-- [License](#-license)
+- [Primary research conclusion and figure guide](docs/FINAL_SUBMISSION_GUIDE.md)
+- [Hybrid results](results/hybrid_field/aggregate_report.md)
+- [Verification report](docs/VERIFICATION.md)
+- [How to upload this package](UPLOAD_TO_REPOSITORY.md)
+- [Algorithm and budget details](docs/HYBRID_DESIGN.md)
+- [Historical results and provenance](results/README.md)
+- [Reproduce the experiments](docs/experiments.md)
 
----
+### Team contribution summaries
 
-## 👥 Team Members (GitHub IDs)
+These summaries describe the integrated contributions. Follow this README for installation; there are no separate member patches to apply.
 
-> Members are added to this repository as **collaborators** and must accept the
-> GitHub invitation before they can push. Add your GitHub username below.
+- [Member 1: quantum optimizer](docs/contributions/member1-quantum.md)
+- [Member 2: farm model and planner](docs/contributions/member2-planner.md)
+- [Member 3: dashboard](docs/contributions/member3-dashboard.md)
 
-| # | Name | GitHub Username | Role |
-| :-- | :--- | :--- | :--- |
-| 1 | Shylan Kamesh S | shylankamesh | _Team Lead_ |
-| 2 | Sai Santhosh T | tsaisanth29-ece | _Developer_ |
-| 3 | Derin Godson | Derin-Godson | _Developer_ |
+## Team
 
-<!--
-Optional: add a plain list instead of the table above.
-- @username1
-- @username2
--->
+| Name | GitHub | Role |
+|---|---|---|
+| Shylan Kamesh S | shylankamesh | Team Lead |
+| Sai Santhosh T | tsaisanth29-ece | Developer |
+| Derin Godson | Derin-Godson | Developer |
 
----
+## Problem and approach
 
-## ❓ Problem Statement
+Allocate exactly K equal-volume irrigation events across eligible field-time slots under uncertain rainfall and evaporation, and replan as forecasts change without altering already executed decisions. The **scientific contribution under evaluation** is an *invocation policy*: choose when to spend QAOA calls and shots instead of invoking the same quantum search at every planning opportunity. It is **not** a claim that the quantum planner is faster or better than classical-only scheduling.
 
-**Problem:** Allocate a fixed quota of irrigation events across eligible field-time slots under uncertain weather. Investigate whether selective quantum replanning can maintain schedule quality while reducing quantum execution cost.
+The planner generates greedy and local-search schedules, scores their mean stress and fractional-tail empirical CVaR, and applies a forecast-change/ranking-instability gate. If requested and budget remains, fixed-weight XY-QAOA samples candidates using an expected-stress quadratic phase Hamiltonian. COBYLA tunes two angles within the shot allocation. Full risk scoring remains classical, and a quantum candidate is accepted only if it improves the incumbent.
 
-**Why it matters:** Forecast changes can make an existing plan less suitable; additional optimization must justify its computational cost. The synthetic model optimizes timing at exactly K equal-size events and does not demonstrate water savings.
+The dashboard supports shared or field-specific weather, changing crop targets, saved-schedule exact evaluation, budget persistence, and separate comparison accounting. It shows the **best measured quantum candidate risk** independently from the **classical incumbent risk** when an actual QAOA call succeeds; the final schedule may still be classical. An exact classical policy is an explicit small-instance reference; other online policies never consult enumeration.
 
-**Track / Category:** Online · Quantum Applications for Climate Change & Sustainability
+## Run on Windows
 
----
-
-## 💡 Proposed Solution
-
-**Solution:** JalQ-R generates feasible classical schedules, evaluates expected moisture stress and empirical tail risk, and uses a heuristic forecast-response gate to request optional quantum candidate search. It retains the best verified classical or quantum candidate.
-
-**Key idea:** Selective invocation of fixed-weight XY-QAOA with explicit classical fallback.
-
-**Current status:** The quantum branch uses three fixed parameter trials at p=1 and ideal Aer simulation. Persistent budget enforcement, stronger quantum baselines, noise experiments, and held-out evaluation are still TODOs. Quantum execution must be verified in an environment with Qiskit and Aer installed.
-
----
-
-## 🧩 Approach & Architecture
-
-```mermaid
-flowchart LR
-    A[Farm and forecast inputs] --> B[Feasible classical candidates]
-    B --> C[Heuristic invocation gate]
-    C --> D[Optional Qiskit Aer search]
-    B --> E[Feasibility and risk scoring]
-    D --> E
-    E --> F[Verified schedule and metrics]
-```
-
-1. **Input:** Three fields, four windows, synthetic forecasts, eligibility, moisture and remaining quota.
-2. **Classical core:** Greedy and bounded swap-based local search with risk-aware scoring.
-3. **Quantum core:** Expected-stress QUBO mapped to RZ/RZZ gates and XXPlusYY mixing. Full CVaR is not encoded in the phase circuit.
-4. **Verification:** Check exact quota and rescore candidates classically. Missing Qiskit is reported as unavailable.
-5. **Evaluation:** An explicit offline endpoint computes the exact optimum; online planning does not consult it. The dashboard comparison is exploratory, not a validated benchmark.
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology |
-| :--- | :--- |
-| Language | Python 3.11+ |
-| API | FastAPI, Uvicorn, Pydantic |
-| Numerics | NumPy |
-| Quantum | Qiskit, Qiskit Aer (optional for classical demo) |
-| Frontend | HTML, CSS, vanilla JavaScript |
-| Tests | pytest, HTTPX |
-| Version control | Git + GitHub |
-
----
-
-## 📁 Project Structure
-
-```text
-vtu-hc-quantum-coderz/
-├── README.md
-├── TODO.md
-├── requirements.txt
-├── requirements-classical.txt
-├── requirements-dev.txt
-├── planner.py
-├── quantum_engine.py
-├── server.py
-├── start_windows.bat
-├── start_mac_linux.sh
-├── static/                 # HTML, CSS, JavaScript
-├── tests/test_planner.py
-└── docs/demo-notes.md       # Original supplied skeleton notes
-```
-
----
-
-## 🚀 How to Run
-
-Clone this assigned repository, then create a virtual environment:
+Use a Python version supported by the installed Qiskit/Aer wheels (the recorded Windows environment used Python 3.13). Node.js is also needed for the JavaScript regression checks. Open a terminal in this folder:
 
 ```powershell
-git clone https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-quantum-coderz.git
-cd vtu-hc-quantum-coderz
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m uvicorn server:app --reload
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000. On macOS/Linux use `python3 -m venv .venv` and `source .venv/bin/activate`.
+Open http://127.0.0.1:8000. On macOS/Linux use `python3 -m venv .venv` and `.venv/bin/python` for subsequent commands. Classical-only installation uses `requirements-classical.txt`; requested quantum search then reports unavailable.
 
-For the classical-only demo, install `requirements-classical.txt` instead. Requested quantum runs will explicitly report unavailable when Qiskit/Aer are absent.
-
-### Tests
+For tests:
 
 ```powershell
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest -q tests --basetemp=pytest_temp
+node tests/frontend_regression.cjs
+node tests/research_summary_regression.cjs
+.\.venv\Scripts\python.exe member2_demo.py --quantum
 ```
 
-Development requirements include the classical web dependencies and test tools; install `requirements.txt` as well to exercise Qiskit. Supplied tests do not fully validate the quantum branch.
+The tested package versions are recorded in [requirements-tested.txt](requirements-tested.txt). This records the tested environment; the ordinary requirements retain compatible ranges.
 
-### Validation of this initial upload
+## Fresh hybrid measurements — 22 October 2026
 
-- Python syntax: four source/test files passed parsing.
-- Frontend JavaScript: `node --check static/app.js` passed.
-- Targeted numerical checks: default eight-variable QUBO/Ising mapping matched all 256 bitstrings within 1e-7; quota and one rolling-horizon preservation check passed.
-- Full pytest/API and Qiskit execution were not run in the upload environment because dependencies were unavailable.
+Three independent seed blocks, four development and six held-out episodes each: **18 held-out episodes per policy**, field-specific weather and changing targets, ideal Aer, 384 shots/call, at most three calls/episode.
 
-No performance benchmark or quantum advantage is established.
+| Policy | Mean realized stress ↓ | Completed quantum calls | Shots | Quantum improvements |
+|---|---:|---:|---:|---:|
+| Classical-only | 3746.88 | 0 | 0 | 0 |
+| Always QAOA | 3746.88 | 38 | 14592 | 0 |
+| Selective QAOA | 3746.88 | 13 | 4992 | 0 |
+| Random invocation | 3746.88 | 16 | 6144 | 0 |
+| Extra classical | 3746.88 | 0 | 0 | 0 |
+| Exact classical | 3746.88 | 0 | 0 | 0 |
 
----
+**Primary finding:** Selective QAOA used **65.8% fewer quantum circuit shots** (4,992 versus 14,592) and **25 fewer completed QAOA calls** (13 versus 38) than always-run QAOA over the same 18 held-out synthetic episodes. Both policies had the same **observed mean realized moisture stress** (3,746.88). The selected schedule retains the risk-scored classical incumbent unless a measured quantum candidate improves it, so *equal final quality does not prove that QAOA alone produced the same quality*. No tested quantum sample improved the classical incumbent.
 
-## 🔁 How to Push Code
+**Essential comparison boundary:** Classical-only achieved the same final stress with **zero** quantum shots. The 65.8% refers **only** to *selective versus always-run QAOA*, not to savings versus classical-only, nor to CPU time, energy, water use or quantum speedup. Random invocation was calibrated on development episodes, but its observed held-out call rate (16 calls) does not exactly match selective's (13); this does not prove the heuristic is better than a matched-rate random trigger.
 
-> Full walkthrough: **[Git & Collaboration Handbook](../vtu-hc-guide-git-and-collaboration)** — collaboration
-> workflow, branches, pull requests, reviews and conflict resolution.
+Historical 24-episode and 90-episode studies used earlier shared-weather/fixed-angle implementations. The historical optimizer comparison measures final sampled expected stress, not crop outcomes. They are preserved separately and must not be presented as hybrid measurements.
 
-### Configure Git (first time only)
+## Demo sequence
 
-```bash
-git config --global user.name  "Your Name"
-git config --global user.email "you@example.com"
-```
+1. Start with Reset demo and inspect the feasible classical schedule.
+2. Open Farm Model, enable field-level inputs and change a future rainfall or evaporation value.
+3. Recalculate. Choose Always QAOA to demonstrate actual Aer execution, show best measured quantum candidate risk versus the classical incumbent, and inspect budget consumption; selective invocation may legitimately skip it.
+4. Advance one window, observe completed cells lock, then recalculate.
+5. In Experiments, read the **CSV-backed primary selective-versus-always QAOA result** first; inspect fresh and historical results separately. Evaluate the saved schedule without rerunning quantum search.
+6. Explain that comparisons use separate one-call allocations per policy; their cumulative usage is visible above the dashboard.
 
-### Everyday workflow
+## Scope and limitations
 
-```bash
-# 1. Get the latest changes
-git checkout main
-git pull origin main
+- Three fields and four windows; synthetic linear moisture dynamics with squared target deviation. This penalizes both over- and under-target moisture; it is not a validated agronomic loss function.
+- Exactly K equal-size events means water use is fixed; this prototype does not demonstrate water savings.
+- p=1, ideal simulator, shot-noise-affected sampling/parameter search; no hardware-noise study, Dicke-state comparison, or published-method superiority claim.
+- Planning budget is state carried by this single-browser demo and validated by the API. It is not a secure multi-user/server-global quota. Reloading restores usage; Reset starts a new demo. Use a single tab.
+- The dashboard advances using forecasts as synthetic observations. The experiment runner independently reveals simulated realized weather after each decision.
+- Shot reduction occurs because the selective policy *skips QAOA invocations*, not because it adaptively reduces the shots within each successful call. Work counters are model-operation proxies; timings are local machine measurements, not hardware runtime or energy.
+- The selected final schedule's equality across policies is protected by the classical fallback and does not establish standalone QAOA solution-quality parity. A computation-matched random-policy and stronger classical/quantum baselines remain future work.
 
-# 2. Create a branch for your work
-git checkout -b feature/my-task
+## Files
 
-# 3. Commit your work
-git add .
-git commit -m "feat: add variational circuit for the search problem"
+`planner.py`: farm model, CVaR, candidates, trigger, budgets, exact reference.
+`quantum_engine.py`: COBYLA and fixed-angle XY-QAOA, shot and gate accounting.
+`server.py`: API, saved-plan evaluator, CSV-backed evidence.
+`static/`: dashboard. `tests/`: numerical/API/quantum/frontend regressions.
+`experiments.py`: six-policy rolling-horizon benchmark; `tools/`: run aggregation.
+`results/`: explicitly separated fresh and historical measurements.
+`docs/FINAL_SUBMISSION_GUIDE.md`: demo narrative, numbers, and submission checklist; no invented video or portal confirmation.
 
-# 4. Push the branch
-git push -u origin feature/my-task
-
-# 5. Open a Pull Request on GitHub and request a review
-#    https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-quantum-coderz/compare/main...feature/my-task
-
-# 6. After approval, merge into main
-git checkout main
-git pull origin main
-git branch -d feature/my-task
-```
-
-### Commit message convention
-
-| Prefix | Meaning |
-| :--- | :--- |
-| `feat:` | New feature |
-| `fix:` | Bug fix |
-| `docs:` | Documentation only |
-| `test:` | Adding or fixing tests |
-| `refactor:` | Code restructure, no behaviour change |
-| `chore:` | Build/config/dependency changes |
-
-### Useful commands
-
-```bash
-git status              # what changed
-git log --oneline -10   # recent commits
-git diff                # review changes before committing
-git stash               # shelve changes temporarily
-git pull --rebase       # update your branch on top of main
-```
-
-### Collaborating on the same repo
-
-- **Never push directly to `main`** — open a Pull Request.
-- **Pull before you push** to avoid rejected commits.
-- **Commit often** with clear messages.
-- **Resolve conflicts** locally: `git pull --rebase`, fix the files, then `git add` + `git rebase --continue`.
-- **Ask for a review** before merging — a second pair of eyes catches bugs fast.
-
----
-
-## ✅ Submission Checklist
-
-- [ ] Assigned event repository used; visibility follows organizer instructions
-- [ ] All team members added as **collaborators** and invitations accepted
-- [ ] `README.md` updated with project details, problem statement and solution
-- [ ] Team members listed under [Team Members](#-team-members-github-ids)
-- [ ] `requirements.txt` committed and project runs from a clean clone
-- [ ] Code pushed to `main` and the latest `main` builds successfully
-- [ ] Notebooks committed with **cleared outputs** (or use `nbstrip`)
-- [ ] `README` includes a demo screenshot / video link
-- [ ] Short project summary submitted on the hackathon portal
-
----
-
-## 📚 Resources
-
-| Resource | Link |
-| :--- | :--- |
-| 🔁 Git & collaboration handbook | [Git & Collaboration Handbook](../vtu-hc-guide-git-and-collaboration) |
-| ❓ Problem statements, solutions & terms | [Problem Statements, Solutions & Terms](../vtu-hc-guide-problem-and-solution) |
-| 📄 README writing guide | [README Guide & Template](../vtu-hc-guide-readme-template) |
-| ⚛️ Qiskit documentation | https://docs.quantum.ibm.com/ |
-| ⚛️ Qiskit Runtime & primitives | https://quantum.cloud.ibm.com/docs/ |
-| 🧪 Qiskit Aer simulator | https://docs.quantum.ibm.com/guides/simulator |
-| 💻 IBM Quantum Platform | https://quantum.cloud.ibm.com/ |
-| 🎓 Qiskit textbook | https://qiskit.qotlabs.org/learning/ |
-| 📋 GitHub Docs | https://docs.github.com/ |
-
----
-
-### Research references and attribution
+## References and attribution
 
 - [Irrigation QAOA formulation](https://arxiv.org/abs/2607.13374)
-- [Warm-start QAOA with XY mixers](https://arxiv.org/abs/2504.19934)
+- [Warm-start XY mixers](https://arxiv.org/abs/2504.19934)
 - [Iterative warm-start XY mixers](https://arxiv.org/abs/2604.02083)
 - [Initial-state/mixer alignment](https://www.nature.com/articles/s41534-023-00787-5)
 
-This commit imports the supplied demo skeleton. Code preparation and documentation used AI assistance; the team must understand, test, and attribute its submission according to event rules. Research components are prior art; originality and efficiency are not certified.
-
-## 📄 License
-
-Released under the [MIT License](LICENSE). See `LICENSE` for details.
-
----
-
-<div align="center">
-
-**Quantum_coderz** · Team ID `VTU-QFF-HC-0167` · Tier `Online`
-· Built with ⚛️ Qiskit for the VTU-QFF Hackathon
-
-[⬆ Back to Top](#quantum_coderz)
-
-</div>
-
+Quantum components build on prior work. Novelty is not certified. Team sources and AI-assisted integration are recorded in [integration sources](docs/INTEGRATION_SOURCES.md). The team should understand and explain all submitted code. MIT license retained in [LICENSE](LICENSE).

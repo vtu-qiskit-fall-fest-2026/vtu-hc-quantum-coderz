@@ -178,3 +178,4 @@ def test_merged_member1_optimizer_runs_on_field_specific_model():
     assert result['raw_feasibility_rate'] == 1.0
     assert p.feasible(result['candidate_bits'])
     assert sum(x['shots'] for x in result['parameter_history']) == 128
+

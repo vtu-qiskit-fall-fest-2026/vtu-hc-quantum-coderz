@@ -9,3 +9,4 @@ if errorlevel 1 (
 python -m uvicorn server:app --reload
 pause
 
+

@@ -1,0 +1,105 @@
+{
+  "mode": "quantum",
+  "farm_model": "field_specific",
+  "quantum_engine": "XY-QAOA p=1 COBYLA",
+  "runtime_versions_by_replicate": [
+    {
+      "python": "3.13.0",
+      "numpy": "2.5.4",
+      "qiskit": "2.6.0",
+      "qiskit_aer": "0.18.0",
+      "scipy": "1.18.1"
+    },
+    {
+      "python": "3.13.0",
+      "numpy": "2.5.4",
+      "qiskit": "2.6.0",
+      "qiskit_aer": "0.18.0",
+      "scipy": "1.18.1"
+    },
+    {
+      "python": "3.13.0",
+      "numpy": "2.5.4",
+      "qiskit": "2.6.0",
+      "qiskit_aer": "0.18.0",
+      "scipy": "1.18.1"
+    }
+  ],
+  "replicates": 3,
+  "development_episodes_by_replicate": [
+    4,
+    4,
+    4
+  ],
+  "heldout_episodes_by_replicate": [
+    6,
+    6,
+    6
+  ],
+  "total_heldout_episodes_per_policy": 18,
+  "shots_per_call": 384,
+  "scenario_count": 15,
+  "max_quantum_calls_per_trajectory": 3,
+  "seed_blocks": [
+    {
+      "replicate": 1,
+      "development_episode_seeds": [
+        20261022,
+        20261023,
+        20261024,
+        20261025
+      ],
+      "test_episode_seeds": [
+        20361022,
+        20361023,
+        20361024,
+        20361025,
+        20361026,
+        20361027
+      ]
+    },
+    {
+      "replicate": 2,
+      "development_episode_seeds": [
+        20262022,
+        20262023,
+        20262024,
+        20262025
+      ],
+      "test_episode_seeds": [
+        20362022,
+        20362023,
+        20362024,
+        20362025,
+        20362026,
+        20362027
+      ]
+    },
+    {
+      "replicate": 3,
+      "development_episode_seeds": [
+        20263022,
+        20263023,
+        20263024,
+        20263025
+      ],
+      "test_episode_seeds": [
+        20363022,
+        20363023,
+        20363024,
+        20363025,
+        20363026,
+        20363027
+      ]
+    }
+  ],
+  "confidence_interval": "Paired normal-approximation 95% interval on episode-level differences; descriptive, not adjusted for multiple comparisons",
+  "limitations": [
+    "All weather and moisture values are synthetic and are not field validation.",
+    "Aer is an ideal simulator and the result is not quantum hardware evidence.",
+    "No policy showed benefit unless supported by the paired held-out outcomes; inspect wins, ties, losses and confidence intervals.",
+    "Gate-shot totals are compiled two-qubit or all-gate instruction counts multiplied by shots, not runtime, energy, or hardware cost.",
+    "Classical scenario counts are operation proxies; CPU time is reported separately and is machine-dependent.",
+    "The exact_classical policy enumerates the same current forecast/scenario model at each decision and is an expensive classical reference, not a future-weather oracle."
+  ]
+}

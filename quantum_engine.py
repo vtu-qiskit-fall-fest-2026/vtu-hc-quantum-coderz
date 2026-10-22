@@ -108,6 +108,8 @@ def shot_plan(shots, method):
     At 384 shots, COBYLA gets UP TO 8x32-shot evaluations and AT LEAST 128 final shots.
     At 384 shots, FIXED gets 3x48-shot evaluations + 240 final shots.
     """
+    if isinstance(shots,bool) or not isinstance(shots,(int,np.integer)):
+        raise ValueError('Shot budget must be an integer')
     shots = int(shots)
     if shots < 64:
         raise ValueError("At least 64 shots are required")
@@ -132,12 +134,18 @@ def _run_candidate(planner, seed_bits, shots, method):
             "gate_weighted_shots": 0, "two_qubit_gates": 0,
             "depth": 0, "candidates": 0, "method": method,
         }
-    from qiskit import transpile
-    from qiskit_aer import AerSimulator
-
-    # Import scipy in the optimizer mode so the fixed baseline stays independent.
-    if method == "cobyla":
-        from scipy.optimize import minimize
+    try:
+        from qiskit import transpile
+        from qiskit_aer import AerSimulator
+    
+        # Import scipy in the optimizer mode so the fixed baseline stays independent.
+        if method == "cobyla":
+            from scipy.optimize import minimize
+    
+    except Exception as exc:
+        return {'status':'execution_error','candidate_bits':None,'error':str(exc)[:350],
+                'shots':0,'circuit_evaluations':0,'gate_weighted_shots':0,
+                'two_qubit_gate_shots':0,'compiled_gate_shots':0,'two_qubit_gates':0,'depth':0,'candidates':0}
 
     shots = int(shots)
     pilots = shot_plan(shots, method)
@@ -148,6 +156,7 @@ def _run_candidate(planner, seed_bits, shots, method):
     valid_shots = 0
     circuit_evaluations = 0
     gate_weighted_shots = 0
+    compiled_gate_shots = 0
     depth_max = 0
     two_qubit_max = 0
     best_bits = None
@@ -168,12 +177,12 @@ def _run_candidate(planner, seed_bits, shots, method):
     def get_risk(bits):
         if bits not in risk_cache:
             # These are post-measurement evaluations, not a QAOA phase term.
-            risk_cache[bits] = float(planner.score(bits, track=False)["risk"])
+            risk_cache[bits] = float(planner.score(bits)["risk"])
         return risk_cache[bits]
 
     def execute(params, number, stage):
         nonlocal attempted, valid_shots, circuit_evaluations
-        nonlocal gate_weighted_shots, depth_max, two_qubit_max
+        nonlocal gate_weighted_shots, compiled_gate_shots, depth_max, two_qubit_max
         nonlocal best_bits, best_risk
 
         number = int(number)
@@ -190,15 +199,15 @@ def _run_candidate(planner, seed_bits, shots, method):
         )
         twoq = int(compiled.count_ops().get("cx", 0))
         depth = int(compiled.depth())
+        all_gates=sum(int(count) for gate,count in compiled.count_ops().items() if gate not in ("measure","barrier"))
         # Count every submitted circuit shot, including failed jobs.
-        job = simulator.run(
-            compiled,
-            shots=number,
-            seed_simulator=int(rng.integers(1, 2**31)),
-        )
         attempted += number
         circuit_evaluations += 1
         gate_weighted_shots += twoq * number
+        compiled_gate_shots += all_gates * number
+        job = simulator.run(
+            compiled, shots=number, seed_simulator=int(rng.integers(1, 2**31)),
+        )
         depth_max = max(depth_max, depth)
         two_qubit_max = max(two_qubit_max, twoq)
         counts = job.result().get_counts()
@@ -301,6 +310,7 @@ def _run_candidate(planner, seed_bits, shots, method):
             "shots": attempted,
             "circuit_evaluations": circuit_evaluations,
             "gate_weighted_shots": gate_weighted_shots,
+            "two_qubit_gate_shots": gate_weighted_shots, "compiled_gate_shots": compiled_gate_shots,
             "two_qubit_gates": two_qubit_max,
             "depth": depth_max,
             "raw_feasibility_rate": round(valid_shots / attempted, 6),
@@ -337,6 +347,7 @@ def _run_candidate(planner, seed_bits, shots, method):
             "shots": attempted,
             "circuit_evaluations": circuit_evaluations,
             "gate_weighted_shots": gate_weighted_shots,
+            "two_qubit_gate_shots": gate_weighted_shots, "compiled_gate_shots": compiled_gate_shots,
             "two_qubit_gates": two_qubit_max,
             "depth": depth_max,
             "raw_feasibility_rate": round(valid_shots / max(1, attempted), 6),
@@ -356,3 +367,4 @@ def qaoa_candidate(planner, seed_bits, shots=384):
 def fixed_qaoa_candidate(planner, seed_bits, shots=384):
     """Old-method comparison using exactly the same *total* measurement budget."""
     return _run_candidate(planner, seed_bits, shots, "fixed")
+

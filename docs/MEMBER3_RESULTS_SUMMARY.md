@@ -1,3 +1,5 @@
+> Historical development notes. For current hybrid behavior and verification, see the root README and docs/VERIFICATION.md.
+
 # JalQ-R — Research Results Summary (Member 3)
 
 **Evidence type:** synthetic simulation using Qiskit Aer. These measurements were collected on the **earlier shared-weather farm model**, before Member 2's field-specific version was merged. They are **not** field validation, hardware runtime, or a quantum-advantage demonstration.
@@ -50,3 +52,4 @@ COBYLA's mean final-sample expected stress was approximately **23.7% lower** tha
 - No quantum-produced solution improved the classical incumbent in the currently reported comparisons.
 
 **Suggested research claim:** JalQ-R provides a tested hybrid irrigation scheduling prototype with constraint-preserving simulated QAOA search and a heuristic for reducing optional quantum invocations. Its experiments expose when classical scheduling is already sufficient, without claiming a quantum advantage.
+

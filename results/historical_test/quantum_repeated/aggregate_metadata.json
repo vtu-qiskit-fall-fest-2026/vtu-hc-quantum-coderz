@@ -1,0 +1,39 @@
+{
+  "mode": "quantum",
+  "runtime_versions": {
+    "python": "3.13.7",
+    "numpy": "2.5.4",
+    "qiskit": "2.6.0",
+    "qiskit_aer": "0.18.0"
+  },
+  "replicates": 3,
+  "development_episodes_per_replicate": 10,
+  "heldout_episodes_per_replicate": 30,
+  "total_heldout_episodes_per_policy": 90,
+  "shots_per_call": 384,
+  "scenario_count": 15,
+  "max_quantum_calls_per_trajectory": 3,
+  "seed_blocks": [
+    {
+      "replicate": 1,
+      "seed": 20261022
+    },
+    {
+      "replicate": 2,
+      "seed": 20271022
+    },
+    {
+      "replicate": 3,
+      "seed": 20281022
+    }
+  ],
+  "confidence_interval": "Paired normal-approximation 95% interval on episode-level differences; descriptive, not adjusted for multiple comparisons",
+  "limitations": [
+    "All weather and moisture values are synthetic and are not field validation.",
+    "Aer is an ideal simulator and the result is not quantum hardware evidence.",
+    "No policy showed benefit unless supported by the paired held-out outcomes; inspect wins, ties, losses and confidence intervals.",
+    "Gate-shot totals are compiled two-qubit or all-gate instruction counts multiplied by shots, not runtime, energy, or hardware cost.",
+    "Classical scenario counts are operation proxies; CPU time is reported separately and is machine-dependent.",
+    "The exact_classical policy enumerates the same current forecast/scenario model at each decision and is an expensive classical reference, not a future-weather oracle."
+  ]
+}

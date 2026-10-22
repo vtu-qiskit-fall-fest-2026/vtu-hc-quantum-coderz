@@ -1,31 +1,18 @@
-# JalQ-R skeleton TODOs
+# Submission checklist
 
-Status: initial demo skeleton, not final research results.
+- [x] Integrate main algorithms/model with test budgets, saved-plan evaluation and workload accounting.
+- [x] Fix timeline refresh, stale-response handling and comparison usage reporting.
+- [x] Preserve historical numerical/API/quantum test results and passing frontend regression checks.
+- [ ] Run the complete Python suite and live QAOA successfully on the final submission laptop; the latest local full-suite attempt hit an Aer native-library error.
+- [x] Generate and archive fresh field-specific Aer runs separately from historical evidence.
+- [x] Record versions, seed provenance and limitations.
+- [x] Emphasize selective-versus-always QAOA as the primary research comparison in README/dashboard.
+- [x] Present best measured QAOA candidate risk separately from the protected final classical-or-quantum schedule.
+- [x] Keep classical-only and historical studies visible as honest secondary references.
+- [ ] Complete final visual walkthrough on the team's demo laptop (browser access was interrupted during integration QA).
+- [x] Capture an updated Experiments screenshot from the finalized frontend and actual saved CSV API results (headless local-browser preview).
+- [ ] Record real Qiskit execution screenshot and YouTube demo on Windows; replace the pending README entry with its real link.
+- [ ] Prepare/submit PPT and links through the organizer portal.
+- [ ] Review the hybrid changes in the assigned repository, merge into the required submission branch and verify that checkout.
 
-## Before a recorded quantum demo
-
-- [ ] Install full dependencies and run the complete supplied test suite.
-- [ ] Execute and verify the Qiskit branch, bit ordering, feasibility and gate counts.
-- [ ] Fix minimum shot allocation: 64 is accepted but three 32-shot pilots plus a final sample require at least 128.
-- [ ] Invalidate stale plans after control changes or horizon advancement; require replanning before executing the next window.
-- [ ] Display quantum execution errors distinctly from skipped calls.
-
-## Research implementation
-
-- [ ] Enforce a persistent quantum budget across forecast updates and account for every call.
-- [ ] Implement budget-limited parameter optimization and a Dicke + XY baseline.
-- [ ] Add repeated held-out trajectories, independent realized weather, and noisy simulations.
-- [ ] Calibrate random invocation to a comparable call rate and strengthen the extra-classical baseline.
-- [ ] Correct empirical CVaR fractional-tail weighting or label its approximation explicitly.
-- [ ] Count all classical model evaluations, including greedy search and trigger features.
-- [ ] Reconcile ranking-instability documentation with the implemented candidate-pair reversal metric.
-- [ ] Ensure the offline evaluation UI evaluates the intended saved plan rather than silently rerunning it.
-- [ ] Compare quality and total cost without claiming simulator timing is hardware timing.
-
-## Submission
-
-- [ ] Fill in actual team member names and GitHub handles in README.
-- [ ] Add demo video and measured results with limitations.
-- [ ] Confirm package versions from the team's tested environment.
-- [ ] Review and merge the skeleton PR into main under the repository workflow.
-
+Future research: larger instances, stronger compute-matched classical search, Dicke-state comparison, noise/hardware, agronomic calibration. No quantum-advantage claim is currently supported.

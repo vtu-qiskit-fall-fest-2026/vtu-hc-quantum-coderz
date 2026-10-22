@@ -99,3 +99,4 @@ def test_existing_decide_contract():
     assert result["quantum"]["shots"] == 128
     assert sum(sum(row) for row in result["schedule"]) == 3
     assert "candidate_bits" not in result["quantum"]
+

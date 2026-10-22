@@ -25,7 +25,7 @@ def example():
 
 def test_new_field_matrices_flow_to_planner():
     payload = server.Payload(**example())
-    direct = Planner(FarmRequest(**payload.model_dump()))
+    direct = Planner(FarmRequest(**payload.model_dump(exclude={'selected_schedule'})))
     assert direct.rain_scenarios.shape == (7, 3, 4)
     assert direct.target_matrix.shape == (3, 4)
     r = client.post('/api/plan', json=example())
@@ -65,7 +65,8 @@ def test_results_endpoint_gracefully_handles_missing_csvs(monkeypatch, tmp_path)
     r = client.get('/api/research-results')
     assert r.status_code == 200
     data = r.json()
-    assert data['farm_model'] == 'legacy_shared_weather'
+    assert data['farm_model'] == 'mixed_by_section'
+    assert data['source_kind'] == 'saved_synthetic_simulator_experiments'
     assert data['rolling_horizon'] is None
     assert data['optimizer_comparison'] is None
 
@@ -102,3 +103,4 @@ def test_results_endpoint_uses_csv_content_not_embedded_values(monkeypatch, tmp_
     assert methods['fixed']['mean_final_sampled_stress'] == pytest.approx(525)
     assert methods['cobyla']['mean_final_sampled_stress'] == pytest.approx(415)
     assert methods['cobyla']['total_shots'] == 768
+

@@ -5,3 +5,4 @@ pydantic>=2,<3
 qiskit>=1.0,<3
 qiskit-aer>=0.15,<1
 scipy>=1.11,<2
+
