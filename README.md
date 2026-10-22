@@ -23,7 +23,7 @@
 
 ---
 
-> **Initial demo skeleton — research implementation in progress.** Numerical classical planning and an optional Qiskit Aer candidate generator. No quantum advantage or validated efficiency improvement is claimed. See [TODO.md](TODO.md) for known gaps and [demo notes](docs/demo-notes.md) for the supplied skeleton's original documentation.
+> **Research prototype.** Numerical classical planning and an optional Qiskit Aer candidate generator. No quantum advantage or validated efficiency improvement is claimed. See [TODO.md](TODO.md) for remaining work and [demo notes](docs/demo-notes.md) for the supplied skeleton's original documentation.
 
 ## 📌 Table of Contents
 
@@ -76,7 +76,7 @@ Optional: add a plain list instead of the table above.
 
 **Key idea:** Selective invocation of fixed-weight XY-QAOA with explicit classical fallback.
 
-**Current status:** The planner enforces explicit rolling call and shot budgets, detects changes to rainfall and evaporation forecasts, and always retains a classically verified schedule. The optional quantum branch uses three fixed parameter trials at p=1 and ideal Aer simulation. Stronger quantum baselines, noise experiments, and additional held-out evaluation remain future work. Quantum execution must be verified in an environment with Qiskit and Aer installed.
+**Current status:** The planner enforces explicit rolling call and shot budgets, detects changes to rainfall and evaporation forecasts, and always retains a classically verified schedule. The optional quantum branch uses three fixed parameter trials at p=1 and ideal Aer simulation. Three independent Qiskit Aer runs compare five heuristic policies against an exact current-forecast classical baseline over 90 held-out synthetic episodes per policy. All policies had identical realized stress in that experiment, and no quantum sample improved the classical incumbent. See the [aggregate report](results/quantum_repeated/aggregate_report.md) and [run metadata](results/quantum_repeated/aggregate_metadata.json). This is exploratory simulator evidence, not field validation, hardware execution, or a quantum advantage claim. Noise studies and broader problem-size evaluation remain future work.
 
 ---
 

@@ -29,6 +29,27 @@ def test_rolling_horizon_smoke_uses_exact_three_events():
     assert result["irrigation_events"] == 3
     assert result["shots"] == 0
     assert all(r["quantum_invoked"] == 0 for r in steps)
+    assert all(r["selected_forecast_gap"] >= 0 for r in steps)
+    assert all(r["offline_exact_evaluations"] >= 1 for r in steps)
+    assert all(r["planner_loss_scenario_evaluations"] > 0 for r in steps)
+    assert result["planner_loss_scenario_evaluations"] == sum(
+        r["planner_loss_scenario_evaluations"] for r in steps
+    )
+
+
+def test_exact_classical_policy_matches_current_forecast_optimum():
+    from planner import decide
+
+    episode = create_episode(340)
+    request = request_for(
+        episode, 0, [29.0, 23.0, 25.0], [[0] * 4 for _ in range(3)], None,
+        policy="exact_classical", shots=384, scenario_count=5,
+    )
+    plan = decide(request, offline_evaluation=True)
+    assert plan["policy"] == "exact_classical"
+    assert plan["objective"]["risk"] == plan["offline_evaluation"]["optimal_risk"]
+    assert plan["planner_work"]["exact_enumeration_evaluations"] > 0
+    assert plan["quantum"]["status"] == "not_requested"
 
 
 def test_calibration_uses_only_dev_episode_data():

@@ -3,7 +3,7 @@
 Research boundaries:
 - Simulated weather, not agronomic field observations.
 - Decisions receive forecasts and past observations, NOT future realizations.
-- Five policies share the same exogenous scenario for each episode.
+- Six policies share the same exogenous scenario for each episode.
 - Classical/quantum outputs are evaluated on actual simulated weather after decisions.
 - Random invocation probability is calibrated on disjoint development episodes.
 - This is an exploratory benchmark, not a hardware quantum-advantage test.
@@ -20,8 +20,10 @@ import csv
 import json
 import math
 import statistics
+import sys
 import time
 from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import numpy as np
@@ -29,7 +31,7 @@ import numpy as np
 from planner import FarmRequest, Planner, decide
 from quantum_engine import quantum_available
 
-POLICIES = ("never", "always", "selective", "random", "extra_classical")
+POLICIES = ("never", "always", "selective", "random", "extra_classical", "exact_classical")
 FIELDS = 3
 WINDOWS = 4
 BASE_RAIN = (3.0, 0.0, 4.0, 1.0)
@@ -38,6 +40,13 @@ DEFAULT_AVAILABLE = ((1, 1, 0, 1), (1, 0, 1, 0), (0, 1, 1, 1))
 TARGET = (42.0, 40.0, 44.0)
 PRIORITY = (1.3, 1.0, 1.5)
 MOISTURE = (29.0, 23.0, 25.0)
+
+
+def installed_version(package: str) -> str | None:
+    try:
+        return version(package)
+    except PackageNotFoundError:
+        return None
 
 
 @dataclass(frozen=True)
@@ -196,6 +205,8 @@ def run_episode(
             effective_policy = "selective" if calls_remaining > 0 else "never"
         elif policy == "extra_classical":
             effective_policy = "extra_classical"
+        elif policy == "exact_classical":
+            effective_policy = "exact_classical"
         elif policy in ("always", "random"):
             effective_policy = "always" if requested and calls_remaining > 0 else "never"
         else:
@@ -229,6 +240,16 @@ def run_episode(
         if any(schedule[f][past] != executed[f][past] for f in range(FIELDS) for past in range(t)):
             raise AssertionError("Replanning modified an executed irrigation event")
 
+        # Post-hoc exact optimum under this decision's forecast/scenarios. It
+        # never sees future realized weather and never affects the chosen plan.
+        audit = Planner(req)
+        selected_bits = tuple(schedule[f][window] for f, window in audit.slots)
+        selected_forecast_risk = audit.score(selected_bits, track=False)["risk"]
+        exact_forecast = audit.evaluate_exact_offline()
+        exact_forecast_gap = max(0.0, selected_forecast_risk - exact_forecast["risk"])
+        classical_forecast_gap = max(0.0, plan["classical_baseline"]["risk"] - exact_forecast["risk"])
+        work = plan["planner_work"]
+
         # Now, and only now, reveal the actual rain/evaporation for window t.
         irrigation_events_this_window = 0
         realized_stress = 0.0
@@ -260,7 +281,22 @@ def run_episode(
             "circuit_evaluations": int(quantum.get("circuit_evaluations", 0)),
             "two_qubit_gates_max": int(quantum.get("two_qubit_gates", 0)),
             "circuit_depth_max": int(quantum.get("depth", 0)),
+            "two_qubit_gate_shots": int(quantum.get("two_qubit_gate_shots", quantum.get("gate_weighted_shots", 0))),
+            "compiled_gate_shots": int(quantum.get("compiled_gate_shots", 0)),
             "classical_evaluations_reported": int(plan["classical_evaluations"]),
+            "planner_score_requests": int(work["score_requests"]),
+            "planner_score_cache_hits": int(work["score_cache_hits"]),
+            "planner_loss_vector_requests": int(work["loss_vector_requests"]),
+            "planner_loss_vector_cache_hits": int(work["loss_vector_cache_hits"]),
+            "planner_unique_loss_vectors": int(work["unique_loss_vectors"]),
+            "planner_loss_scenario_evaluations": int(work["loss_scenario_evaluations"]),
+            "planner_qubo_builds": int(work["qubo_builds"]),
+            "planner_exact_enumeration_evaluations": int(work["exact_enumeration_evaluations"]),
+            "offline_exact_evaluations": math.comb(len(audit.slots), audit.k),
+            "selected_forecast_risk": float(selected_forecast_risk),
+            "exact_forecast_risk": float(exact_forecast["risk"]),
+            "selected_forecast_gap": float(exact_forecast_gap),
+            "classical_forecast_gap": float(classical_forecast_gap),
             "planning_runtime_seconds": float(planning_runtime_seconds),
             "predicted_risk": float(plan["objective"]["risk"]),
             "classical_baseline_risk": float(plan["classical_baseline"]["risk"]),
@@ -282,7 +318,20 @@ def run_episode(
         "shots": sum(r["shots"] for r in records),
         "gate_weighted_shots": sum(r["gate_weighted_shots"] for r in records),
         "circuit_evaluations": sum(r["circuit_evaluations"] for r in records),
+        "two_qubit_gate_shots": sum(r["two_qubit_gate_shots"] for r in records),
+        "compiled_gate_shots": sum(r["compiled_gate_shots"] for r in records),
         "classical_evaluations_reported": sum(r["classical_evaluations_reported"] for r in records),
+        "planner_score_requests": sum(r["planner_score_requests"] for r in records),
+        "planner_score_cache_hits": sum(r["planner_score_cache_hits"] for r in records),
+        "planner_loss_vector_requests": sum(r["planner_loss_vector_requests"] for r in records),
+        "planner_loss_vector_cache_hits": sum(r["planner_loss_vector_cache_hits"] for r in records),
+        "planner_unique_loss_vectors": sum(r["planner_unique_loss_vectors"] for r in records),
+        "planner_loss_scenario_evaluations": sum(r["planner_loss_scenario_evaluations"] for r in records),
+        "planner_qubo_builds": sum(r["planner_qubo_builds"] for r in records),
+        "planner_exact_enumeration_evaluations": sum(r["planner_exact_enumeration_evaluations"] for r in records),
+        "offline_exact_evaluations": sum(r["offline_exact_evaluations"] for r in records),
+        "mean_selected_forecast_gap": statistics.mean(r["selected_forecast_gap"] for r in records),
+        "mean_classical_forecast_gap": statistics.mean(r["classical_forecast_gap"] for r in records),
         "planning_runtime_seconds": sum(r["planning_runtime_seconds"] for r in records),
         "budget_blocked": sum(r["budget_blocked"] for r in records),
         "eligible_nontrivial_updates": sum(r["nontrivial"] for r in records),
@@ -364,7 +413,15 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
             "total_quantum_improvements": sum(r["quantum_improvements"] for r in rows),
             "total_shots": sum(r["shots"] for r in rows),
             "total_gate_weighted_shots": sum(r["gate_weighted_shots"] for r in rows),
+            "total_two_qubit_gate_shots": sum(r["two_qubit_gate_shots"] for r in rows),
+            "total_compiled_gate_shots": sum(r["compiled_gate_shots"] for r in rows),
             "total_classical_evaluations_reported": sum(r["classical_evaluations_reported"] for r in rows),
+            "total_planner_score_requests": sum(r["planner_score_requests"] for r in rows),
+            "total_planner_loss_scenario_evaluations": sum(r["planner_loss_scenario_evaluations"] for r in rows),
+            "total_planner_exact_enumeration_evaluations": sum(r["planner_exact_enumeration_evaluations"] for r in rows),
+            "total_offline_exact_evaluations": sum(r["offline_exact_evaluations"] for r in rows),
+            "mean_selected_forecast_gap": round(statistics.mean(r["mean_selected_forecast_gap"] for r in rows), 4),
+            "mean_classical_forecast_gap": round(statistics.mean(r["mean_classical_forecast_gap"] for r in rows), 4),
             "total_budget_blocked": sum(r["budget_blocked"] for r in rows),
         })
 
@@ -375,6 +432,9 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
     metadata = {
         "mode": mode,
         "scientific_status": "EXPLORATORY; NOT a quantum advantage claim",
+        "runtime_versions": {"python": sys.version.split()[0], "numpy": np.__version__,
+                             "qiskit": installed_version("qiskit"),
+                             "qiskit_aer": installed_version("qiskit-aer")},
         "development_episodes": dev,
         "heldout_episodes": test,
         "development_episode_seeds": [e.seed for e in dev_episodes],
@@ -392,7 +452,8 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
             "The original heuristic's random policy has fixed 0.5 probability; this experiment instead calibrates Bernoulli calls on development episodes",
             "Random and selective invocation rates may differ on held-out episodes; check their observed rates",
             "Extra-classical baseline is the current 8-round local search, not strictly matched to quantum CPU cost",
-            "Reported classical_evaluations undercounts greedy/QUBO work and should NOT be called total classical cost",
+            "Planner score requests, unique loss vectors, scenario evaluations, and offline exact enumeration are reported separately; none is CPU time or a hardware-equivalent cost",
+            "The exact forecast reference for other policies is post-hoc; exact_classical deliberately uses this same current-forecast enumeration as an expensive adaptive classical baseline, without observing future realized weather",
             "Current quantum engine uses p=1 with three fixed pilot parameter combinations; this is not a full variational parameter optimizer",
             "The current empirical CVaR averages the worst ceil(tail_fraction*scenario_count) simulated values (approximation)",
             "Local wall-clock planner runtime is machine- and load-dependent; it is not a quantum hardware timing claim",
@@ -404,22 +465,23 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     report = [
         "# JalQ-R exploratory benchmark report", "",
-        f"**Mode:** {mode.upper()}  ",
-        f"**Held-out episodes:** {test}  ",
-        f"**Development episodes:** {dev}  ",
-        f"**Random invocation probability, calibrated on development:** {random_probability:.3f}  ",
+        f"**Mode:** {mode.upper()}",
+        f"**Held-out episodes:** {test}",
+        f"**Development episodes:** {dev}",
+        f"**Random invocation probability, calibrated on development:** {random_probability:.3f}",
         "", "**Metrics: lower simulated realized moisture stress is better.**", "",
-        "| Policy | Mean realized stress ± SD | Δ vs classical (paired) | Planner seconds / episode (mean ± SD) | Q calls (completed/requested) | Shots | Gate-weighted shots |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Policy | Mean realized stress ± SD | Δ vs classical (paired) | Forecast gap | Planner seconds / episode (mean ± SD) | Q calls (completed/requested) | Shots | 2Q gate-shots |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in summary_rows:
         report.append(
             f"| {row['policy']} | {row['mean_realized_stress']:,.1f} ± {row['std_realized_stress']:,.1f} "
-            f"| {row['mean_paired_difference_from_classical']:+,.1f} | {row['mean_local_planning_runtime_seconds']:.6f} ± {row['std_local_planning_runtime_seconds']:.6f} "
-            f"| {row['total_completed_quantum_calls']}/{row['total_quantum_calls']} | {row['total_shots']} | {row['total_gate_weighted_shots']} |"
+            f"| {row['mean_paired_difference_from_classical']:+,.1f} | {row['mean_selected_forecast_gap']:,.2f} | {row['mean_local_planning_runtime_seconds']:.6f} ± {row['std_local_planning_runtime_seconds']:.6f} "
+            f"| {row['total_completed_quantum_calls']}/{row['total_quantum_calls']} | {row['total_shots']} | {row['total_two_qubit_gate_shots']} |"
         )
     report.extend([
         "", "Negative paired difference means lower realized moisture stress than classical-only.",
+        "Forecast gap is selected-schedule risk minus the exact post-hoc optimum under the same available forecast/scenario model; it is not a future-weather oracle or policy outcome.",
         "", "## Interpretation and limitations", "",
     ])
     if mode == "smoke":

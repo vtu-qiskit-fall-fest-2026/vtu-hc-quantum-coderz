@@ -77,7 +77,7 @@ class FarmRequest:
         if isinstance(self.scenario_count,bool) or not isinstance(self.scenario_count,int) or not 3 <= self.scenario_count <= 100: raise ValueError('Scenario count must be an integer from 3..100')
         if isinstance(self.seed,bool) or not isinstance(self.seed,int) or self.seed < 0: raise ValueError('Seed must be a non-negative integer')
         if self.uncertainty < 0: raise ValueError('Uncertainty cannot be negative')
-        if self.policy not in ('never','always','selective','random','extra_classical'): raise ValueError('Unknown policy')
+        if self.policy not in ('never','always','selective','random','extra_classical','exact_classical'): raise ValueError('Unknown policy')
         if isinstance(self.quantum_shots, bool) or not isinstance(self.quantum_shots, int) or not 64 <= self.quantum_shots <= 10000: raise ValueError('Quantum shots must be 64..10000')
         if isinstance(self.quantum_max_calls, bool) or not isinstance(self.quantum_max_calls, int) or self.quantum_max_calls < 0: raise ValueError('Quantum call budget must be a non-negative integer')
         if isinstance(self.quantum_calls_used, bool) or not isinstance(self.quantum_calls_used, int) or not 0 <= self.quantum_calls_used <= self.quantum_max_calls: raise ValueError('Quantum calls used must be within the configured budget')
@@ -127,6 +127,12 @@ class Planner:
         self.eval_count=0
         self._loss_cache={}
         self._score_cache={}
+        self.loss_vector_requests=0
+        self.loss_vector_cache_hits=0
+        self.loss_scenario_evaluations=0
+        self.score_cache_hits=0
+        self.qubo_builds=0
+        self.exact_enumeration_evaluations=0
 
     def feasible(self,bits):
         return len(bits)==self.n and all(int(v) in (0,1) for v in bits) and sum(bits)==self.k
@@ -140,9 +146,13 @@ class Planner:
 
     def loss_vector(self,bits):
         """Allows partial bit vectors solely for Hamiltonian coefficient generation."""
+        self.loss_vector_requests+=1
         key=tuple(float(bit) for bit in bits)
         cached=self._loss_cache.get(key)
-        if cached is not None:return cached
+        if cached is not None:
+            self.loss_vector_cache_hits+=1
+            return cached
+        self.loss_scenario_evaluations+=self.r.scenario_count
         slots=np.zeros((3,4))
         for (f,t),bit in zip(self.slots,bits): slots[f,t]=float(bit)
         moisture=np.tile(np.asarray(self.r.moisture,dtype=float),(self.r.scenario_count,1))
@@ -160,7 +170,9 @@ class Planner:
         if not self.feasible(bits): raise ValueError('Candidate does not satisfy exact remaining quota')
         if track:self.eval_count+=1
         key=tuple(int(v) for v in bits)
-        if key in self._score_cache:return self._score_cache[key]
+        if key in self._score_cache:
+            if track:self.score_cache_hits+=1
+            return self._score_cache[key]
         losses,_=self.loss_vector(bits)
         # Discrete equally-weighted empirical CVaR: average of worst ceil((1-alpha)S) outcomes.
         m=max(1,math.ceil((1-self.r.alpha)*len(losses)))
@@ -183,6 +195,7 @@ class Planner:
 
     def expected_qubo(self):
         # This derives a genuinely quadratic surrogate from the linear moisture model.
+        self.qubo_builds+=1
         zero=[0]*self.n
         c=float(self.loss_vector(zero)[0].mean())
         a=np.empty(self.n); b=np.zeros((self.n,self.n))
@@ -279,6 +292,7 @@ class Planner:
         """Never called by decide(): for independent post-hoc evaluation only."""
         best=None
         for select in combinations(range(self.n),self.k):
+            self.exact_enumeration_evaluations+=1
             bits=tuple(int(i in select) for i in range(self.n))
             risk=self.score(bits,track=False)['risk']
             if best is None or risk<best['risk']:best={'bits':bits,'risk':risk}
@@ -310,6 +324,10 @@ def decide(request: FarmRequest, *, offline_evaluation=False):
         extra=planner.local_search(incumbent['bits'],max_rounds=8)
         obj=planner.score(extra)
         if obj['risk']<winner['risk']-1e-9:winner={'label':'Extended classical search','bits':extra,**obj}
+    if request.policy=='exact_classical':
+        exact=planner.evaluate_exact_offline()
+        obj=planner.score(exact['bits'])
+        winner={'label':'Exact forecast enumeration','bits':exact['bits'],**obj}
     if invoked:
         if quantum_available():
             allowed_shots=min(request.quantum_shots,shots_remaining)
@@ -349,6 +367,13 @@ def decide(request: FarmRequest, *, offline_evaluation=False):
             'calls_limit':request.quantum_max_calls,'shots_limit':shots_budget},
         'trigger':feature,'reason':reason,'quantum':quantum,
         'classical_candidate_count':len(candidates),'classical_evaluations':planner.eval_count,
+        'planner_work':{'score_requests':planner.eval_count,'score_cache_hits':planner.score_cache_hits,
+            'loss_vector_requests':planner.loss_vector_requests,
+            'loss_vector_cache_hits':planner.loss_vector_cache_hits,
+            'unique_loss_vectors':len(planner._loss_cache),
+            'loss_scenario_evaluations':planner.loss_scenario_evaluations,
+            'qubo_builds':planner.qubo_builds,
+            'exact_enumeration_evaluations':planner.exact_enumeration_evaluations},
         'candidate_overview':[{'source':d['label'],'risk':round(d['risk'],2)} for d in candidates[:5]],
         'caveat':'Idealized synthetic moisture model. Exactly K events; no water savings or quantum speedup claimed.'}
     if offline_evaluation:

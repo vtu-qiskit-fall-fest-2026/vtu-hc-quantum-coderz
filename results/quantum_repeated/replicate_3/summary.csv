@@ -1,0 +1,7 @@
+policy,episodes,mean_realized_stress,std_realized_stress,mean_paired_difference_from_classical,std_paired_difference_from_classical,mean_predicted_risk,mean_local_planning_runtime_seconds,std_local_planning_runtime_seconds,total_quantum_calls,total_completed_quantum_calls,quantum_call_rate_per_nontrivial_update,total_quantum_improvements,total_shots,total_gate_weighted_shots,total_two_qubit_gate_shots,total_compiled_gate_shots,total_classical_evaluations_reported,total_planner_score_requests,total_planner_loss_scenario_evaluations,total_planner_exact_enumeration_evaluations,total_offline_exact_evaluations,mean_selected_forecast_gap,mean_classical_forecast_gap,total_budget_blocked
+never,30,2725.1545,1231.9394,0.0,0.0,1723.6643,0.006997,0.001494,0,0,0.0,0,0,0,0,0,1326,1326,17925,0,1929,0.0,0.0011,0
+always,30,2725.1545,1231.9394,0.0,0.0,1723.6643,0.200334,0.386048,60,60,1.0,0,23040,691200,691200,4147200,3930,3930,41925,0,1929,0.0,0.0011,0
+selective,30,2725.1545,1231.9394,0.0,0.0,1723.6643,0.011398,0.016483,3,3,0.05,0,1152,27648,27648,172032,1401,1401,18510,0,1929,0.0,0.0011,0
+random,30,2725.1545,1231.9394,0.0,0.0,1723.6643,0.006514,0.001511,0,0,0.0,0,0,0,0,0,1326,1326,17925,0,1929,0.0,0.0011,0
+extra_classical,30,2725.1545,1231.9394,0.0,0.0,1723.6643,0.007219,0.00147,0,0,0.0,0,0,0,0,0,1350,1350,17925,0,1929,0.0,0.0011,0
+exact_classical,30,2725.1545,1231.9394,0.0,0.0,1723.6643,0.009374,0.00172,0,0,0.0,0,0,0,0,0,1446,1446,35775,1929,1929,0.0,0.0011,0

@@ -72,7 +72,7 @@ def qaoa_candidate(planner,seed_bits,shots=384):
     shot_allocation=allocate_shots(shots)
     final_shots=shot_allocation[-1]
     best_score=float('inf');best_params=None;best_bits=None
-    total_gates=0;largest_depth=0;max_2q=0;evals=0;valid_counts=0;shots_used=0
+    two_qubit_gate_shots=0;compiled_gate_shots=0;largest_depth=0;max_2q=0;evals=0;valid_counts=0;shots_used=0
     phases=[(0.8,0.35),(1.8,0.8),(3.4,1.15)]
     try:
         from qiskit import transpile
@@ -81,13 +81,15 @@ def qaoa_candidate(planner,seed_bits,shots=384):
         rng=np.random.default_rng(planner.r.seed+919)
 
         def execute(gamma,beta,number):
-            nonlocal total_gates,largest_depth,max_2q,evals,valid_counts,best_bits,best_score,shots_used
+            nonlocal two_qubit_gate_shots,compiled_gate_shots,largest_depth,max_2q,evals,valid_counts,best_bits,best_score,shots_used
             circuit=build_qaoa_circuit(planner,seed_bits,gamma,beta)
             compiled=transpile(circuit,basis_gates=['rz','sx','x','cx','measure'],optimization_level=1,seed_transpiler=7)
             twoq=int(compiled.count_ops().get('cx',0))
+            all_gates=sum(int(count) for gate,count in compiled.count_ops().items() if gate!='measure' and gate!='barrier')
             largest_depth=max(largest_depth,compiled.depth())
             max_2q=max(max_2q,twoq)
-            total_gates+=twoq*number
+            two_qubit_gate_shots+=twoq*number
+            compiled_gate_shots+=all_gates*number
             # Charge a submitted backend request even if execution subsequently fails.
             shots_used+=number;evals+=1
             result=simulator.run(compiled,shots=number,seed_simulator=int(rng.integers(1,2**31))).result()
@@ -113,7 +115,8 @@ def qaoa_candidate(planner,seed_bits,shots=384):
         if best_params is None:best_params=phases[0]
         execute(*best_params,final_shots)
         return {'status':'completed','candidate_bits':best_bits,'shots':shots_used,
-            'circuit_evaluations':evals,'gate_weighted_shots':total_gates,
+            'circuit_evaluations':evals,'gate_weighted_shots':two_qubit_gate_shots,
+            'two_qubit_gate_shots':two_qubit_gate_shots,'compiled_gate_shots':compiled_gate_shots,
             'two_qubit_gates':max_2q,'depth':largest_depth,
             'raw_feasibility_rate':round(valid_counts/max(1,shots_used),3),
             'candidates':1 if best_bits is not None else 0,
@@ -121,6 +124,8 @@ def qaoa_candidate(planner,seed_bits,shots=384):
     except Exception as exc:
         return {'status':'execution_error','candidate_bits':None,'error':str(exc)[:220],
             'shots':shots_used,'circuit_evaluations':evals,
-            'gate_weighted_shots':total_gates,'two_qubit_gates':max_2q,
+            'gate_weighted_shots':two_qubit_gate_shots,
+            'two_qubit_gate_shots':two_qubit_gate_shots,'compiled_gate_shots':compiled_gate_shots,
+            'two_qubit_gates':max_2q,
             'depth':largest_depth,'candidates':0}
 
