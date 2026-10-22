@@ -32,8 +32,14 @@ class Payload(BaseModel):
     trigger_regret: float = 0.04
     trigger_instability: float = 0.10
     quantum_shots: int = 384
+    quantum_max_calls: int = 3
+    quantum_calls_used: int = 0
+    quantum_shots_budget: int | None = None
+    quantum_shots_used: int = 0
     previous_rain: list[float] | None = None
+    previous_evaporation: list[float] | None = None
     previous_plan: list[list[int]] | None = None
+    selected_schedule: list[list[int]] | None = None
 
 @app.get('/')
 def home():return FileResponse(BASE/'static'/'index.html')
@@ -43,12 +49,27 @@ def health():return {'ok':True,'quantum_available':quantum_available(), 'disclai
 
 @app.post('/api/plan')
 def plan(payload:Payload):
-    try:return decide(FarmRequest(**payload.model_dump()))
+    try:return decide(FarmRequest(**payload.model_dump(exclude={'selected_schedule'})))
     except ValueError as exc:raise HTTPException(422,detail=str(exc))
 
 @app.post('/api/evaluate')
 def evaluate(payload:Payload):
-    """EXPLICIT offline endpoint; never used for planning decisions."""
-    try:return decide(FarmRequest(**payload.model_dump()),offline_evaluation=True)
+    """Score a submitted plan against the offline optimum; never used online."""
+    try:
+        from planner import Planner
+        planner=Planner(FarmRequest(**payload.model_dump(exclude={'selected_schedule'})))
+        matrix=payload.selected_schedule
+        if matrix is None or len(matrix)!=3 or any(len(row)!=4 for row in matrix):
+            raise ValueError('Run the planner first and submit its 3×4 schedule for evaluation')
+        if any(value not in (0,1) for row in matrix for value in row):
+            raise ValueError('Selected schedule must be binary')
+        bits=tuple(int(matrix[f][t]) for f,t in planner.slots)
+        if not planner.feasible(bits) or planner.to_matrix(bits)!=matrix:
+            raise ValueError('Selected schedule is infeasible for the current inputs')
+        selected=planner.score(bits)
+        exact=planner.evaluate_exact_offline()
+        return {'schedule':matrix,'objective':selected,'offline_evaluation':{
+            'optimal_risk':round(exact['risk'],2),'selected_risk':round(selected['risk'],2),
+            'gap':round(selected['risk']-exact['risk'],2),'only_for_posthoc_validation':True}}
     except ValueError as exc:raise HTTPException(422,detail=str(exc))
 

@@ -76,7 +76,7 @@ Optional: add a plain list instead of the table above.
 
 **Key idea:** Selective invocation of fixed-weight XY-QAOA with explicit classical fallback.
 
-**Current status:** The quantum branch uses three fixed parameter trials at p=1 and ideal Aer simulation. Persistent budget enforcement, stronger quantum baselines, noise experiments, and held-out evaluation are still TODOs. Quantum execution must be verified in an environment with Qiskit and Aer installed.
+**Current status:** The planner enforces explicit rolling call and shot budgets, detects changes to rainfall and evaporation forecasts, and always retains a classically verified schedule. The optional quantum branch uses three fixed parameter trials at p=1 and ideal Aer simulation. Stronger quantum baselines, noise experiments, and additional held-out evaluation remain future work. Quantum execution must be verified in an environment with Qiskit and Aer installed.
 
 ---
 
@@ -109,7 +109,7 @@ flowchart LR
 | Numerics | NumPy |
 | Quantum | Qiskit, Qiskit Aer (optional for classical demo) |
 | Frontend | HTML, CSS, vanilla JavaScript |
-| Tests | pytest, HTTPX |
+| Tests | pytest, FastAPI TestClient (HTTPX / HTTPX2) |
 | Version control | Git + GitHub |
 
 ---
@@ -137,20 +137,20 @@ vtu-hc-quantum-coderz/
 
 ## 🚀 How to Run
 
-Clone this assigned repository, then create a virtual environment:
+Clone this assigned repository, then create a virtual environment. A classical-only install is sufficient to run the dashboard:
 
 ```powershell
-git clone https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-quantum-coderz.git
+git clone --branch test --single-branch https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-quantum-coderz.git
 cd vtu-hc-quantum-coderz
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-classical.txt
 python -m uvicorn server:app --reload
 ```
 
 Open http://127.0.0.1:8000. On macOS/Linux use `python3 -m venv .venv` and `source .venv/bin/activate`.
 
-For the classical-only demo, install `requirements-classical.txt` instead. Requested quantum runs will explicitly report unavailable when Qiskit/Aer are absent.
+To enable genuine local Aer simulation, install `requirements.txt` in the same environment. Requested quantum runs report unavailable when Qiskit/Aer are absent. The browser stores demo state and remaining budget locally; choose **Reset demo** to restore the sample scenario and initial budget.
 
 ### Tests
 
@@ -159,7 +159,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Development requirements include the classical web dependencies and test tools; install `requirements.txt` as well to exercise Qiskit. Supplied tests do not fully validate the quantum branch.
+Development requirements include the classical web dependencies and test tools; install `requirements.txt` as well to exercise Qiskit. The canonical test suite is under `tests/`.
 
 ### Validation of this initial upload
 
@@ -187,28 +187,19 @@ git config --global user.email "you@example.com"
 ### Everyday workflow
 
 ```bash
-# 1. Get the latest changes
-git checkout main
-git pull origin main
+# Stay on the assigned test branch
+git checkout test
+git pull --ff-only origin test
 
-# 2. Create a branch for your work
-git checkout -b feature/my-task
-
-# 3. Commit your work
+# Commit work on test
 git add .
-git commit -m "feat: add variational circuit for the search problem"
+git commit -m "fix: enforce rolling quantum budgets"
 
-# 4. Push the branch
-git push -u origin feature/my-task
-
-# 5. Open a Pull Request on GitHub and request a review
-#    https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-quantum-coderz/compare/main...feature/my-task
-
-# 6. After approval, merge into main
-git checkout main
-git pull origin main
-git branch -d feature/my-task
+# Push only to test
+git push origin test
 ```
+
+Do not commit, push, or merge assignment changes to `main`.
 
 ### Commit message convention
 
@@ -228,12 +219,12 @@ git status              # what changed
 git log --oneline -10   # recent commits
 git diff                # review changes before committing
 git stash               # shelve changes temporarily
-git pull --rebase       # update your branch on top of main
+git pull --ff-only origin test  # update only the assigned branch
 ```
 
 ### Collaborating on the same repo
 
-- **Never push directly to `main`** — open a Pull Request.
+- **Keep assignment changes on `test`** and review the branch diff before pushing.
 - **Pull before you push** to avoid rejected commits.
 - **Commit often** with clear messages.
 - **Resolve conflicts** locally: `git pull --rebase`, fix the files, then `git add` + `git rebase --continue`.
@@ -248,7 +239,7 @@ git pull --rebase       # update your branch on top of main
 - [ ] `README.md` updated with project details, problem statement and solution
 - [ ] Team members listed under [Team Members](#-team-members-github-ids)
 - [ ] `requirements.txt` committed and project runs from a clean clone
-- [ ] Code pushed to `main` and the latest `main` builds successfully
+- [ ] Code pushed to the assigned `test` branch and verified there
 - [ ] Notebooks committed with **cleared outputs** (or use `nbstrip`)
 - [ ] `README` includes a demo screenshot / video link
 - [ ] Short project summary submitted on the hackathon portal

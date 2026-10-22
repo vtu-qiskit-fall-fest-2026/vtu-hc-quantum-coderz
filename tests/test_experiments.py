@@ -44,5 +44,10 @@ def test_same_episode_same_policy_reproducible_without_quantum():
                   random_probability=0, max_quantum_calls=0, mode="smoke")
     a, x = run_episode(episode, **kwargs)
     b, y = run_episode(episode, **kwargs)
+    for row in a + b:
+        assert row["planning_runtime_seconds"] >= 0
+        row.pop("planning_runtime_seconds")
+    x.pop("planning_runtime_seconds")
+    y.pop("planning_runtime_seconds")
     assert a == b
     assert x == y

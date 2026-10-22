@@ -1,8 +1,8 @@
 @echo off
 cd /d "%~dp0"
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-classical.txt
 if errorlevel 1 (
-  echo Full quantum installation failed. Try: python -m pip install -r requirements-classical.txt
+  echo Classical dependencies could not be installed. Check the Python and pip setup.
   pause
   exit /b 1
 )

@@ -20,6 +20,29 @@ def coefficients_to_pauli(c,a,b):
             h[i]-=v/4;h[j]-=v/4;z2[i,j]=v/4
     return offset,h,z2
 
+def allocate_shots(shots, pilot_count=3):
+    """Split one positive integer shot budget across pilots and validation.
+
+    Small configured budgets are valid too: pilots shrink to one shot instead
+    of silently exceeding the caller's budget.
+    """
+    if isinstance(pilot_count,bool) or not isinstance(pilot_count,(int,np.integer)) or pilot_count < 1:
+        raise ValueError('Pilot count must be a positive integer')
+    if isinstance(shots, bool) or not isinstance(shots, (int, np.integer)) or shots < pilot_count + 1:
+        raise ValueError('Shot budget must allow at least one shot per pilot and one validation shot')
+    shots=int(shots);pilot_count=int(pilot_count)
+    pilot = max(1, shots // 8)
+    while pilot_count * pilot >= shots:
+        pilot -= 1
+    return [pilot] * pilot_count + [shots - pilot_count * pilot]
+
+def decode_qiskit_bitstring(bitstring, width):
+    """Convert Qiskit's displayed most-significant-first count key to x[i]."""
+    compact=bitstring.replace(' ','')
+    if len(compact)>width or any(bit not in '01' for bit in compact):
+        raise ValueError('Measurement key does not match the circuit width')
+    return tuple(int(bit) for bit in compact.zfill(width)[::-1])
+
 def build_qaoa_circuit(planner, seed_bits, gamma, beta):
     from qiskit import QuantumCircuit
     from qiskit.circuit.library import XXPlusYYGate
@@ -45,57 +68,59 @@ def build_qaoa_circuit(planner, seed_bits, gamma, beta):
     return qc
 
 def qaoa_candidate(planner,seed_bits,shots=384):
-    from qiskit import transpile
-    from qiskit_aer import AerSimulator
-    simulator=AerSimulator()
-    rng=np.random.default_rng(planner.r.seed+919)
     # Three pilot parameter sets with a held-out validation sample.
-    pilot_shots=max(32,shots//8)
-    final_shots=shots-3*pilot_shots
-    if final_shots<32:raise ValueError('Insufficient quantum shots')
+    shot_allocation=allocate_shots(shots)
+    final_shots=shot_allocation[-1]
     best_score=float('inf');best_params=None;best_bits=None
-    total_gates=0;largest_depth=0;max_2q=0;evals=0;valid_counts=0
+    total_gates=0;largest_depth=0;max_2q=0;evals=0;valid_counts=0;shots_used=0
     phases=[(0.8,0.35),(1.8,0.8),(3.4,1.15)]
-    def execute(gamma,beta,number):
-        nonlocal total_gates,largest_depth,max_2q,evals,valid_counts,best_bits,best_score
-        circuit=build_qaoa_circuit(planner,seed_bits,gamma,beta)
-        compiled=transpile(circuit,basis_gates=['rz','sx','x','cx','measure'],optimization_level=1,seed_transpiler=7)
-        twoq=int(compiled.count_ops().get('cx',0))
-        largest_depth=max(largest_depth,compiled.depth())
-        max_2q=max(max_2q,twoq)
-        total_gates+=twoq*number
-        result=simulator.run(compiled,shots=number,seed_simulator=int(rng.integers(1,2**31))).result()
-        counts=result.get_counts();evals+=1
-        total_weight=0.;valid=0;sample_winner=None;sample_winner_risk=float('inf')
-        for key, nshots in counts.items():
-            bits=[int(v) for v in key.replace(' ','').zfill(planner.n)[::-1]]
-            if not planner.feasible(bits):continue
-            valid+=nshots
-            # Quantum tuning uses expected stress surrogate, not CVaR.
-            surrogate=float(planner.loss_vector(bits)[0].mean())
-            total_weight+=nshots*surrogate
-            risk=planner.score(bits)['risk']
-            if risk<sample_winner_risk:sample_winner_risk=risk;sample_winner=bits
-        valid_counts+=valid
-        if sample_winner is not None:
-            if best_bits is None or sample_winner_risk < planner.score(best_bits)['risk']:
-                best_bits=sample_winner
-        return total_weight/max(1,valid) if valid else float('inf')
     try:
-        for params in phases:
-            score=execute(*params,pilot_shots)
+        from qiskit import transpile
+        from qiskit_aer import AerSimulator
+        simulator=AerSimulator()
+        rng=np.random.default_rng(planner.r.seed+919)
+
+        def execute(gamma,beta,number):
+            nonlocal total_gates,largest_depth,max_2q,evals,valid_counts,best_bits,best_score,shots_used
+            circuit=build_qaoa_circuit(planner,seed_bits,gamma,beta)
+            compiled=transpile(circuit,basis_gates=['rz','sx','x','cx','measure'],optimization_level=1,seed_transpiler=7)
+            twoq=int(compiled.count_ops().get('cx',0))
+            largest_depth=max(largest_depth,compiled.depth())
+            max_2q=max(max_2q,twoq)
+            total_gates+=twoq*number
+            # Charge a submitted backend request even if execution subsequently fails.
+            shots_used+=number;evals+=1
+            result=simulator.run(compiled,shots=number,seed_simulator=int(rng.integers(1,2**31))).result()
+            counts=result.get_counts()
+            total_weight=0.;valid=0;sample_winner=None;sample_winner_risk=float('inf')
+            for key, nshots in counts.items():
+                bits=decode_qiskit_bitstring(key,planner.n)
+                if not planner.feasible(bits):continue
+                valid+=nshots
+                # Quantum tuning uses expected stress surrogate, not CVaR.
+                surrogate=float(planner.loss_vector(bits)[0].mean())
+                total_weight+=nshots*surrogate
+                risk=planner.score(bits)['risk']
+                if risk<sample_winner_risk:sample_winner_risk=risk;sample_winner=bits
+            valid_counts+=valid
+            if sample_winner is not None:
+                if best_bits is None or sample_winner_risk < planner.score(best_bits)['risk']:
+                    best_bits=sample_winner
+            return total_weight/max(1,valid) if valid else float('inf')
+        for params, number in zip(phases, shot_allocation[:-1]):
+            score=execute(*params,number)
             if score<best_score:best_score=score;best_params=params
         if best_params is None:best_params=phases[0]
         execute(*best_params,final_shots)
-        return {'status':'completed','candidate_bits':best_bits,'shots':shots,
+        return {'status':'completed','candidate_bits':best_bits,'shots':shots_used,
             'circuit_evaluations':evals,'gate_weighted_shots':total_gates,
             'two_qubit_gates':max_2q,'depth':largest_depth,
-            'raw_feasibility_rate':round(valid_counts/max(1,shots),3),
+            'raw_feasibility_rate':round(valid_counts/max(1,shots_used),3),
             'candidates':1 if best_bits is not None else 0,
             'method':'Qiskit Aer, seed-based XY QAOA p=1; expected-stress surrogate'}
     except Exception as exc:
         return {'status':'execution_error','candidate_bits':None,'error':str(exc)[:220],
-            'shots':sum([pilot_shots]*evals),'circuit_evaluations':evals,
+            'shots':shots_used,'circuit_evaluations':evals,
             'gate_weighted_shots':total_gates,'two_qubit_gates':max_2q,
             'depth':largest_depth,'candidates':0}
 

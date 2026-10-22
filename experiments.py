@@ -20,6 +20,7 @@ import csv
 import json
 import math
 import statistics
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -111,6 +112,7 @@ def request_for(
         trigger_instability=0.10,
         quantum_shots=shots,
         previous_rain=(list(episode.forecasts_rain[window - 1]) if window else None),
+        previous_evaporation=(list(episode.forecasts_evap[window - 1]) if window else None),
         previous_plan=([list(row) for row in prior_plan] if prior_plan is not None else None),
     )
 
@@ -157,7 +159,10 @@ def run_episode(
     observed_moisture = list(MOISTURE)
     executed = [[0] * WINDOWS for _ in range(FIELDS)]
     prior_plan = None
+    if max_quantum_calls < 0 or shots < 64:
+        raise ValueError("Quantum call budget must be non-negative and shots must be at least 64")
     calls_remaining = max_quantum_calls
+    shots_used = 0
     # Random calls are independent across steps and reproducible by episode.
     invocation_rng = np.random.default_rng(episode.seed + 9_100_017)
     records: list[dict] = []
@@ -196,11 +201,20 @@ def run_episode(
         else:
             effective_policy = "never"
         req.policy = effective_policy
+        req.quantum_max_calls = calls_remaining
+        req.quantum_calls_used = 0
+        req.quantum_shots_budget = max_quantum_calls * shots
+        req.quantum_shots_used = shots_used
+        plan_started = time.perf_counter()
         plan = decide(req)
+        planning_runtime_seconds = time.perf_counter() - plan_started
         quantum = plan["quantum"]
         called = bool(plan["quantum_invoked"])
         if called:
             calls_remaining -= 1
+        shots_used += int(quantum.get("shots", 0))
+        if calls_remaining < 0 or shots_used > max_quantum_calls * shots:
+            raise AssertionError("Rolling quantum call or shot budget exceeded")
         if mode == "quantum" and called and quantum["status"] != "completed":
             raise RuntimeError(
                 f"Quantum execution failed for episode={episode.seed}, "
@@ -247,6 +261,7 @@ def run_episode(
             "two_qubit_gates_max": int(quantum.get("two_qubit_gates", 0)),
             "circuit_depth_max": int(quantum.get("depth", 0)),
             "classical_evaluations_reported": int(plan["classical_evaluations"]),
+            "planning_runtime_seconds": float(planning_runtime_seconds),
             "predicted_risk": float(plan["objective"]["risk"]),
             "classical_baseline_risk": float(plan["classical_baseline"]["risk"]),
             "realized_stress": float(realized_stress),
@@ -268,6 +283,7 @@ def run_episode(
         "gate_weighted_shots": sum(r["gate_weighted_shots"] for r in records),
         "circuit_evaluations": sum(r["circuit_evaluations"] for r in records),
         "classical_evaluations_reported": sum(r["classical_evaluations_reported"] for r in records),
+        "planning_runtime_seconds": sum(r["planning_runtime_seconds"] for r in records),
         "budget_blocked": sum(r["budget_blocked"] for r in records),
         "eligible_nontrivial_updates": sum(r["nontrivial"] for r in records),
         "irrigation_events": sum(r["irrigation_events"] for r in records),
@@ -292,9 +308,8 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
               max_quantum_calls: int, seed: int, mode: str, output: Path) -> dict:
     if dev < 2 or test < 2:
         raise ValueError("Use at least two dev and two test episodes")
-    if shots < 128:
-        # Existing engine uses three >=32-shot pilots and a >=32-shot final sample.
-        raise ValueError("Use at least 128 shots; the current engine cannot complete fewer")
+    if shots < 64:
+        raise ValueError("Use at least 64 shots per quantum invocation")
     if mode not in ("smoke", "quantum"):
         raise ValueError("mode must be smoke or quantum")
     if mode == "quantum" and not quantum_available():
@@ -329,6 +344,7 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
         saved_v_classical = [r["total_realized_stress"] - classical_by_episode[r["episode"]]["total_realized_stress"] for r in rows]
         avg, std = mean_and_std(actual)
         paired_mean, paired_std = mean_and_std(saved_v_classical)
+        runtime_mean, runtime_std = mean_and_std([r["planning_runtime_seconds"] for r in rows])
         total_eligible = sum(r["eligible_nontrivial_updates"] for r in rows)
         summary_rows.append({
             "policy": p,
@@ -338,6 +354,8 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
             "mean_paired_difference_from_classical": round(paired_mean, 4),
             "std_paired_difference_from_classical": round(paired_std, 4),
             "mean_predicted_risk": round(statistics.mean(r["mean_predicted_risk"] for r in rows), 4),
+            "mean_local_planning_runtime_seconds": round(runtime_mean, 6),
+            "std_local_planning_runtime_seconds": round(runtime_std, 6),
             "total_quantum_calls": sum(r["quantum_calls"] for r in rows),
             "total_completed_quantum_calls": sum(r["quantum_successful_calls"] for r in rows),
             "quantum_call_rate_per_nontrivial_update": round(
@@ -377,6 +395,7 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
             "Reported classical_evaluations undercounts greedy/QUBO work and should NOT be called total classical cost",
             "Current quantum engine uses p=1 with three fixed pilot parameter combinations; this is not a full variational parameter optimizer",
             "The current empirical CVaR averages the worst ceil(tail_fraction*scenario_count) simulated values (approximation)",
+            "Local wall-clock planner runtime is machine- and load-dependent; it is not a quantum hardware timing claim",
             "Quantum mode must yield completed Qiskit circuit calls; smoke mode cannot establish quantum performance",
             "Synthetic truth is revealed only after each policy commits current-window irrigation decisions",
             "Forecast differences between policies arise only from endogenous past irrigation decisions, not different exogenous weather",
@@ -390,14 +409,14 @@ def benchmark(*, dev: int, test: int, shots: int, scenario_count: int,
         f"**Development episodes:** {dev}  ",
         f"**Random invocation probability, calibrated on development:** {random_probability:.3f}  ",
         "", "**Metrics: lower simulated realized moisture stress is better.**", "",
-        "| Policy | Mean realized stress ± SD | Δ vs classical (paired) | Q calls | Shots | Gate-weighted shots |", 
-        "|---|---:|---:|---:|---:|---:|",
+        "| Policy | Mean realized stress ± SD | Δ vs classical (paired) | Planner seconds / episode (mean ± SD) | Q calls (completed/requested) | Shots | Gate-weighted shots |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for row in summary_rows:
         report.append(
             f"| {row['policy']} | {row['mean_realized_stress']:,.1f} ± {row['std_realized_stress']:,.1f} "
-            f"| {row['mean_paired_difference_from_classical']:+,.1f} "
-            f"| {row['total_completed_quantum_calls']} | {row['total_shots']} | {row['total_gate_weighted_shots']} |"
+            f"| {row['mean_paired_difference_from_classical']:+,.1f} | {row['mean_local_planning_runtime_seconds']:.6f} ± {row['std_local_planning_runtime_seconds']:.6f} "
+            f"| {row['total_completed_quantum_calls']}/{row['total_quantum_calls']} | {row['total_shots']} | {row['total_gate_weighted_shots']} |"
         )
     report.extend([
         "", "Negative paired difference means lower realized moisture stress than classical-only.",
@@ -425,7 +444,7 @@ def main() -> None:
                         help="smoke checks workflow; quantum enforces actual Qiskit execution")
     parser.add_argument("--dev", type=int, default=4, help="number of calibration episodes")
     parser.add_argument("--test", type=int, default=6, help="number of held-out episodes")
-    parser.add_argument("--shots", type=int, default=384, help="shots per Qiskit invocation; minimum 128")
+    parser.add_argument("--shots", type=int, default=384, help="shots per Qiskit invocation; minimum 64")
     parser.add_argument("--scenario-count", type=int, default=15, help="weather scenarios in risk evaluation")
     parser.add_argument("--max-quantum-calls", type=int, default=3, help="per episode for all quantum policies")
     parser.add_argument("--seed", type=int, default=20261021, help="reproducible experiment seed")
@@ -438,7 +457,7 @@ def main() -> None:
     print(f"Development-calibrated random invocation probability: {result['random_probability']:.3f}")
     for row in result["summary"]:
         print(f"{row['policy']:>16} | actual stress {row['mean_realized_stress']:>11,.2f} "
-              f"| quantum calls {row['total_completed_quantum_calls']:>3} "
+              f"| quantum calls {row['total_completed_quantum_calls']}/{row['total_quantum_calls']:>3} "
               f"| shots {row['total_shots']:>6}")
     print(f"Saved benchmark output in: {result['output']}")
     if args.mode == "smoke":

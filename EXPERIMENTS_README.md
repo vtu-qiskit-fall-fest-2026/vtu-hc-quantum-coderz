@@ -15,7 +15,7 @@ Classical-only smoke test (do not cite as quantum performance):
 python experiments.py --mode smoke --dev 4 --test 6 --output results/smoke
 ```
 
-**Actual Qiskit Aer benchmark** (will take longer):
+**Actual Qiskit Aer benchmark** (will take longer; install the full requirements):
 
 ```powershell
 python experiments.py --mode quantum --dev 4 --test 6 --shots 384 --output results/quantum
@@ -43,11 +43,12 @@ The `--mode quantum` flag refuses to run without Qiskit and raises an error if a
 2. The planner sees only the current forecast and realized *past* weather; simulated actual weather for future windows is used only after a schedule decision.
 3. A fixed random-invocation probability is calibrated on separate development episodes using classical rollouts. It is not chosen by looking at final test results. The observed invocation frequencies will not necessarily match exactly on small held-out sets.
 4. `never`, `always`, `selective`, `random`, and `extra_classical` use the same actual project code. Random is driven by the benchmark rather than the prototype's fixed 50% coin flip.
-5. Maximum quantum calls are enforced per trajectory across all quantum policies (default three). The underlying web UI **does not yet persist this budget**.
+5. Maximum quantum calls and total shots are enforced across each benchmark trajectory. The web demo carries the same explicit call/shot budget between rolling replans and persists it in browser storage until Reset demo is selected.
 6. Reported `classical_evaluations_reported` excludes some model work and is not a fair all-in classical compute-cost measure. This version's extra-classical search is not compute-matched to quantum tuning.
 7. Qiskit Aer results are **simulator results**, not quantum hardware performance. Cost summaries use actual reported shots and the project's compiled-gate proxy.
-8. Risk-aware candidate selection uses the current project's approximate empirical CVaR calculation, not fractional-tail exact CVaR.
-9. The current quantum engine uses p=1 and three fixed parameter trials; better variational optimizers and baselines remain future work.
+8. Per-episode local planner wall time is measured alongside shot and gate-weighted-shot totals. It depends on machine load and is not a hardware-time comparison.
+9. Risk-aware candidate selection uses the current project's approximate empirical CVaR calculation, not fractional-tail exact CVaR.
+10. The current quantum engine uses p=1 and three fixed parameter trials plus a validation sample; better variational optimizers and baselines remain future work. Each allocation sums exactly to the configured shot cap, including at the supported 64-shot minimum.
 
 ## Recommendation for your PPT
 
