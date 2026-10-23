@@ -265,7 +265,7 @@ git pull --ff-only origin main  # update main while on main
 - [ ] `requirements.txt` committed and project runs from a clean clone
 - [x] Code pushed to `main`; reviewed files and frontend checks verified there
 - [ ] Notebooks committed with **cleared outputs** (or use `nbstrip`)
-- [x] `README` includes a demo screenshot / video link (screenshot included; recorded video still pending)
+- [x] README includes the demo screenshot, recorded YouTube demonstration, live website and presentation links
 - [ ] Short project summary submitted on the hackathon portal
 
 ---
