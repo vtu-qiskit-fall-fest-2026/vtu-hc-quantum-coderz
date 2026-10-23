@@ -80,7 +80,11 @@ Optional: add a plain list instead of the table above.
 
 The current field-specific study includes **18 held-out synthetic episodes per policy** across three seed blocks. Selective QAOA used **13 calls / 4,992 shots**, compared with **38 calls / 14,592 shots** for always-run QAOA: **65.8% fewer shots relative to always-run QAOA only**. All six policies achieved the same observed mean realized stress, approximately **3,746.88**. No quantum candidate improved the classical incumbent; classical-only achieved the same observed outcome with zero quantum shots. These results do not establish superiority over classical algorithms, quantum advantage, hardware speedup, or real-farm water savings. See the [aggregate report](results/hybrid_field/aggregate_report.md) and [run metadata](results/hybrid_field/aggregate_metadata.json). Earlier shared-weather studies are historical and are documented separately in [results provenance](results/README.md).
 
-**Live website:** [Open JalQ-R](https://jalq-r-605775397403.asia-south1.run.app/). **Recorded demo:** not yet provided; add the actual video link before final submission.
+**Live website:** [Open JalQ-R](https://jalq-r-605775397403.asia-south1.run.app/)
+
+**Presentation:** [Download JalQ-R PowerPoint](VTU-QFF-HC-0167_JalQ-R_final.pptx)
+
+**Recorded demo:** [Watch the demonstration on YouTube](https://youtu.be/ayLlw7HNc8Q)
 
 ![Hybrid experiment results](docs/screenshots/hybrid_experiments.png)
 
